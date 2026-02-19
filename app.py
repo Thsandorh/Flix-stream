@@ -113,7 +113,17 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                     streams.append({
                         "name": f"Flicky - {sr_info['name']}",
                         "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
-                        "url": decrypted_url
+                        "url": decrypted_url,
+                        "behaviorHints": {
+                            "notWebReady": True,
+                            "proxyHeaders": {
+                                "request": {
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                                    "Referer": "https://player.vidzee.wtf/",
+                                    "Origin": "https://player.vidzee.wtf"
+                                }
+                            }
+                        }
                     })
     except Exception:
         pass
