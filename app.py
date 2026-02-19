@@ -35,6 +35,12 @@ SERVERS = [
     {"id": "9", "name": "Hindi"},
 ]
 
+COMMON_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://player.vidzee.wtf/",
+    "Origin": "https://player.vidzee.wtf"
+}
+
 LANG_MAP = {
     "English": "eng",
     "French": "fre",
@@ -82,7 +88,7 @@ LANG_MAP = {
 def get_decryption_key():
     """Fetches and decrypts the current VidZee API key."""
     try:
-        r = requests.get("https://core.vidzee.wtf/api-key", timeout=10)
+        r = requests.get("https://core.vidzee.wtf/api-key", headers=COMMON_HEADERS, timeout=10)
         r.raise_for_status()
         encrypted_data = base64.b64decode(r.text.strip())
 
@@ -126,7 +132,7 @@ def decrypt_link(encrypted_link, key_str):
 def get_tmdb_id(imdb_id):
     """Maps IMDB ID to TMDB ID using the TMDB API."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
-    headers = {"Authorization": f"Bearer {TMDB_TOKEN}"}
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
@@ -180,7 +186,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
 
     streams = []
     try:
-        r = requests.get(api_url, timeout=10)
+        r = requests.get(api_url, headers=COMMON_HEADERS, timeout=10)
         r.raise_for_status()
         data = r.json()
 
@@ -203,11 +209,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                         "behaviorHints": {
                             "notWebReady": True,
                             "proxyHeaders": {
-                                "request": {
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                                    "Referer": "https://player.vidzee.wtf/",
-                                    "Origin": "https://player.vidzee.wtf"
-                                }
+                                "request": COMMON_HEADERS
                             }
                         }
                     }
