@@ -25,11 +25,11 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
-    "types": ["movie", "series", "tv"],
+    "types": ["movie", "series"],
     "idPrefixes": ["tt", "tmdb"],
     "catalogs": []
 }
@@ -333,6 +333,24 @@ def parse_stream_id(content_type, raw_id):
 
         return tmdb_id, season, episode
 
+    # Fallback TMDB-like variants without explicit "tmdb" prefix:
+    # - 224372[:season:episode]
+    # - tv:224372[:season:episode]
+    # - series:224372[:season:episode]
+    # - movie:12345
+    if parts and (parts[0].isdigit() or parts[0].lower() in ("tv", "series", "movie")):
+        tmdb_id = None
+        season = None
+        episode = None
+
+        for i, token in enumerate(parts):
+            if token.isdigit():
+                tmdb_id = int(token)
+                season, episode = _extract_season_episode(parts[i + 1:])
+                break
+
+        return tmdb_id, season, episode
+
     return None, None, None
 
 def parse_subtitles(subtitle_list):
@@ -424,6 +442,10 @@ def manifest():
 @app.route('/stream/<type>/<path:id>.json')
 def stream(type, id):
     tmdb_id, season, episode = parse_stream_id(type, id)
+    app.logger.info(
+        "stream request type=%s id=%s parsed_tmdb=%s season=%s episode=%s",
+        type, id, tmdb_id, season, episode
+    )
     if not tmdb_id:
         return jsonify({"streams": []})
 
@@ -436,6 +458,9 @@ def stream(type, id):
 
     # VidZee TV endpoint requires season and episode.
     if kind in ("series", "tv") and (not season or not episode):
+        app.logger.warning(
+            "missing season/episode for series request type=%s id=%s", type, id
+        )
         return jsonify({"streams": []})
 
     decryption_key = get_decryption_key()
