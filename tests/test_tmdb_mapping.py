@@ -97,6 +97,16 @@ class TestTmdbMapping(unittest.TestCase):
 
         self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
 
+    def test_parse_stream_id_supports_tmdb_series_variant(self):
+        tmdb_id, season, episode = parse_stream_id('series', 'tmdb:series:224372:1:1')
+
+        self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
+
+    def test_parse_stream_id_supports_tmdb_movie_variant(self):
+        tmdb_id, season, episode = parse_stream_id('movie', 'tmdb:movie:27205')
+
+        self.assertEqual((tmdb_id, season, episode), (27205, None, None))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -25,11 +25,11 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
-    "types": ["movie", "series"],
+    "types": ["movie", "series", "tv"],
     "idPrefixes": ["tt", "tmdb"],
     "catalogs": []
 }
@@ -206,19 +206,20 @@ def parse_stream_id(content_type, raw_id):
     # TMDB format variants:
     # - tmdb:224372[:season:episode]
     # - tmdb:tv:224372[:season:episode]
+    # - tmdb:series:224372[:season:episode]
+    # - tmdb:movie:12345
     if parts and parts[0] == 'tmdb':
         tmdb_id = None
         season = None
         episode = None
 
-        if len(parts) >= 2 and parts[1].isdigit():
-            tmdb_id = int(parts[1])
-            season = parts[2] if len(parts) > 2 else None
-            episode = parts[3] if len(parts) > 3 else None
-        elif len(parts) >= 3 and parts[2].isdigit():
-            tmdb_id = int(parts[2])
-            season = parts[3] if len(parts) > 3 else None
-            episode = parts[4] if len(parts) > 4 else None
+        # Find first numeric segment as TMDB id, then read season/episode after it.
+        for i, token in enumerate(parts[1:], start=1):
+            if token.isdigit():
+                tmdb_id = int(token)
+                season = parts[i + 1] if len(parts) > i + 1 else None
+                episode = parts[i + 2] if len(parts) > i + 2 else None
+                break
 
         return tmdb_id, season, episode
 
