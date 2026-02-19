@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import hashlib
 import requests
@@ -33,6 +34,50 @@ SERVERS = [
     {"id": "6", "name": "Achilles"},
     {"id": "9", "name": "Hindi"},
 ]
+
+LANG_MAP = {
+    "English": "eng",
+    "French": "fre",
+    "German": "ger",
+    "Spanish": "spa",
+    "Italian": "ita",
+    "Portuguese": "por",
+    "Portuguese (BR)": "pob",
+    "Hungarian": "hun",
+    "Russian": "rus",
+    "Ukrainian": "ukr",
+    "Dutch": "nld",
+    "Polish": "pol",
+    "Romanian": "rum",
+    "Czech": "cze",
+    "Greek": "gre",
+    "Turkish": "tur",
+    "Arabic": "ara",
+    "Hebrew": "heb",
+    "Japanese": "jpn",
+    "Korean": "kor",
+    "Chinese": "chi", "Chinese (traditional)": "chi",
+    "Vietnamese": "vie",
+    "Thai": "tha",
+    "Indonesian": "ind",
+    "Swedish": "swe",
+    "Norwegian": "nor",
+    "Danish": "dan",
+    "Finnish": "fin",
+    "Slovak": "slo",
+    "Slovenian": "slv",
+    "Croatian": "hrv",
+    "Serbian": "srp",
+    "Bulgarian": "bul",
+    "Estonian": "est",
+    "Latvian": "lav",
+    "Lithuanian": "lit",
+    "Malay": "may",
+    "Persian": "per",
+    "Albanian": "sqi",
+    "Macedonian": "mkd",
+    "Bosnian": "bos",
+}
 
 def get_decryption_key():
     """Fetches and decrypts the current VidZee API key."""
@@ -94,6 +139,38 @@ def get_tmdb_id(imdb_id):
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
     return None
 
+def parse_subtitles(subtitle_list):
+    """Parses VidZee subtitle list into Stremio format."""
+    parsed = []
+    if not subtitle_list:
+        return parsed
+
+    for sub in subtitle_list:
+        lang_name = sub.get("lang", "")
+        url = sub.get("url", "")
+        if not url:
+            continue
+
+        # Try to map language name to ISO 639-2
+        # Use simple mapping
+        iso_code = LANG_MAP.get(lang_name)
+        if not iso_code:
+             # Try stripping numbers at end? "English2" -> "English"
+             base_lang = re.sub(r'\d+$', '', lang_name).strip()
+             iso_code = LANG_MAP.get(base_lang)
+
+        if not iso_code:
+             # Just use the name if we can't map it.
+             # Ideally Stremio wants 3-letter codes but it might fallback gracefully.
+             iso_code = lang_name
+
+        parsed.append({
+            "url": url,
+            "lang": iso_code,
+            "id": lang_name # Use original name as ID to be unique
+        })
+    return parsed
+
 def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     """Worker function to fetch streams from a specific server."""
     sr = sr_info["id"]
@@ -106,11 +183,15 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
         r = requests.get(api_url, timeout=10)
         r.raise_for_status()
         data = r.json()
+
+        # Parse subtitles if available
+        subtitles = parse_subtitles(data.get("subtitle", []))
+
         if data.get("url"):
             for u in data["url"]:
                 decrypted_url = decrypt_link(u["link"], decryption_key)
                 if decrypted_url:
-                    streams.append({
+                    stream_obj = {
                         "name": f"Flicky - {sr_info['name']}",
                         "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
                         "url": decrypted_url,
@@ -124,7 +205,10 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                                 }
                             }
                         }
-                    })
+                    }
+                    if subtitles:
+                        stream_obj["subtitles"] = subtitles
+                    streams.append(stream_obj)
     except Exception:
         pass
     return streams
