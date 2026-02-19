@@ -1,7 +1,6 @@
 import os
 import base64
 import hashlib
-import re
 import requests
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
@@ -141,28 +140,11 @@ def manifest():
 
 @app.route('/stream/<type>/<id>.json')
 def stream(type, id):
-    # Validate type
-    if type not in MANIFEST['types']:
-        return jsonify({"streams": []})
-
-    # Validate ID format and split parts
-    # Movie: tt1234567
-    # Series: tt1234567:1:1
-    if type == 'movie':
-        if not re.match(r'^tt\d+$', id):
-            return jsonify({"streams": []})
-        imdb_id = id
-        season = None
-        episode = None
-    elif type == 'series':
-        if not re.match(r'^tt\d+:\d+:\d+$', id):
-            return jsonify({"streams": []})
-        parts = id.split(':')
-        imdb_id = parts[0]
-        season = parts[1]
-        episode = parts[2]
-    else:
-        return jsonify({"streams": []})
+    # ID format: tt1234567:1:1
+    parts = id.split(':')
+    imdb_id = parts[0]
+    season = parts[1] if len(parts) > 1 else None
+    episode = parts[2] if len(parts) > 2 else None
 
     tmdb_id = get_tmdb_id(imdb_id)
     if not tmdb_id:
