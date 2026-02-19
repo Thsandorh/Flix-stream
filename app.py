@@ -185,7 +185,12 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
         data = r.json()
 
         # Parse subtitles if available
-        subtitles = parse_subtitles(data.get("subtitle", []))
+        # The key might be "subtitle" or "subtitles" depending on API version/response
+        raw_subs = data.get("subtitle", [])
+        if not raw_subs:
+            raw_subs = data.get("subtitles", [])
+
+        subtitles = parse_subtitles(raw_subs)
 
         if data.get("url"):
             for u in data["url"]:
