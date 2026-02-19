@@ -35,6 +35,12 @@ SERVERS = [
     {"id": "9", "name": "Hindi"},
 ]
 
+COMMON_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://player.vidzee.wtf/",
+    "Origin": "https://player.vidzee.wtf"
+}
+
 LANG_MAP = {
     "English": "eng",
     "French": "fre",
@@ -82,7 +88,7 @@ LANG_MAP = {
 def get_decryption_key():
     """Fetches and decrypts the current VidZee API key."""
     try:
-        r = requests.get("https://core.vidzee.wtf/api-key", timeout=10)
+        r = requests.get("https://core.vidzee.wtf/api-key", headers=COMMON_HEADERS, timeout=10)
         r.raise_for_status()
         encrypted_data = base64.b64decode(r.text.strip())
 
@@ -126,7 +132,7 @@ def decrypt_link(encrypted_link, key_str):
 def get_tmdb_id(imdb_id):
     """Maps IMDB ID to TMDB ID using the TMDB API."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
-    headers = {"Authorization": f"Bearer {TMDB_TOKEN}"}
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
@@ -180,15 +186,17 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
 
     streams = []
     try:
-        r = requests.get(api_url, timeout=10)
+        r = requests.get(api_url, headers=COMMON_HEADERS, timeout=10)
         r.raise_for_status()
         data = r.json()
 
         # Parse subtitles if available
-        # The key might be "subtitle" or "subtitles" depending on API version/response
+        # The key might be "subtitle", "subtitles", or "tracks" depending on API version/response
         raw_subs = data.get("subtitle", [])
         if not raw_subs:
             raw_subs = data.get("subtitles", [])
+        if not raw_subs:
+            raw_subs = data.get("tracks", [])
 
         subtitles = parse_subtitles(raw_subs)
 
@@ -203,19 +211,15 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                         "behaviorHints": {
                             "notWebReady": True,
                             "proxyHeaders": {
-                                "request": {
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                                    "Referer": "https://player.vidzee.wtf/",
-                                    "Origin": "https://player.vidzee.wtf"
-                                }
+                                "request": COMMON_HEADERS
                             }
                         }
                     }
                     if subtitles:
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
-    except Exception:
-        pass
+    except Exception as e:
+        app.logger.error(f"Error fetching streams for server {sr}: {e}")
     return streams
 
 @app.route('/')
@@ -234,6 +238,16 @@ def stream(type, id):
     imdb_id = parts[0]
     season = parts[1] if len(parts) > 1 else None
     episode = parts[2] if len(parts) > 2 else None
+
+    # Sanitize season and episode to remove leading zeros (e.g. "01" -> "1")
+    # This is crucial because VidZee API returns 404 for "01"
+    try:
+        if season:
+            season = str(int(season))
+        if episode:
+            episode = str(int(episode))
+    except ValueError:
+        pass
 
     tmdb_id = get_tmdb_id(imdb_id)
     if not tmdb_id:
