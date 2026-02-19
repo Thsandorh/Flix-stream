@@ -44,6 +44,30 @@ class TestTmdbMapping(unittest.TestCase):
         self.assertEqual(tmdb_id, 1399)
 
     @patch('app.requests.get')
+    def test_series_does_not_fallback_to_movie_result(self, mock_get):
+        mock_get.return_value = MockResponse({
+            'movie_results': [{'id': 27205}],
+            'tv_results': [],
+            'tv_episode_results': [],
+        })
+
+        tmdb_id = get_tmdb_id('tt-any', 'series')
+
+        self.assertIsNone(tmdb_id)
+
+    @patch('app.requests.get')
+    def test_tv_alias_is_treated_as_series(self, mock_get):
+        mock_get.return_value = MockResponse({
+            'movie_results': [{'id': 27205}],
+            'tv_results': [{'id': 1399}],
+            'tv_episode_results': [],
+        })
+
+        tmdb_id = get_tmdb_id('tt0944947', 'tv')
+
+        self.assertEqual(tmdb_id, 1399)
+
+    @patch('app.requests.get')
     def test_movie_prefers_movie_result(self, mock_get):
         mock_get.return_value = MockResponse({
             'movie_results': [{'id': 27205}],

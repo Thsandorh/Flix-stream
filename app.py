@@ -160,6 +160,8 @@ def get_tmdb_id(imdb_id, content_type=None):
     """
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
     headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    kind = (content_type or "").lower()
+
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
@@ -168,11 +170,12 @@ def get_tmdb_id(imdb_id, content_type=None):
         tv_results = data.get("tv_results") or []
         tv_episode_results = data.get("tv_episode_results") or []
 
-        if content_type == "series":
+        if kind in ("series", "tv"):
             if tv_results:
                 return tv_results[0]["id"]
             if tv_episode_results and tv_episode_results[0].get("show_id"):
                 return tv_episode_results[0]["show_id"]
+            return None
 
         if movie_results:
             return movie_results[0]["id"]
