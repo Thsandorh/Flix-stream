@@ -1,8 +1,8 @@
 {
     "id": "org.flickystream.addon",
     "version": "1.0.0",
-    "name": "FlickyStream Addon",
-    "description": "Stream movies and TV shows from FlickyStream (VidZee).",
+    "name": "Flix-Streams",
+    "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
