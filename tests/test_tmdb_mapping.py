@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from app import get_tmdb_id
+from app import get_tmdb_id, parse_stream_id
 
 
 class MockResponse:
@@ -78,6 +78,24 @@ class TestTmdbMapping(unittest.TestCase):
         tmdb_id = get_tmdb_id('tt1375666', 'movie')
 
         self.assertEqual(tmdb_id, 27205)
+
+    @patch('app.get_tmdb_id')
+    def test_parse_stream_id_supports_imdb_episode(self, mock_map):
+        mock_map.return_value = 1399
+
+        tmdb_id, season, episode = parse_stream_id('series', 'tt1480055:01:01')
+
+        self.assertEqual((tmdb_id, season, episode), (1399, '01', '01'))
+
+    def test_parse_stream_id_supports_tmdb_direct(self):
+        tmdb_id, season, episode = parse_stream_id('series', 'tmdb:224372:1:1')
+
+        self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
+
+    def test_parse_stream_id_supports_tmdb_typed_variant(self):
+        tmdb_id, season, episode = parse_stream_id('series', 'tmdb:tv:224372:1:1')
+
+        self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
 
 
 if __name__ == '__main__':
