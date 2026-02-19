@@ -30,7 +30,7 @@ MANIFEST = {
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt"],
+    "idPrefixes": ["tt", "tmdb"],
     "catalogs": []
 }
 
@@ -150,22 +150,79 @@ def decrypt_link(encrypted_link, key_str):
     except Exception:
         return None
 
-@lru_cache(maxsize=1024)
-def get_tmdb_id(imdb_id):
-    """Maps IMDB ID to TMDB ID using the TMDB API."""
+@lru_cache(maxsize=2048)
+def get_tmdb_id(imdb_id, content_type=None):
+    """Maps IMDB ID to TMDB ID using the TMDB API.
+
+    For series requests Stremio can sometimes pass episode-level IMDb IDs.
+    In that case TMDB responds with ``tv_episode_results`` instead of
+    ``tv_results``. We map those back to the parent show via ``show_id``.
+    """
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
     headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    kind = (content_type or "").lower()
+
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
-        if data.get("movie_results"):
-            return data["movie_results"][0]["id"]
-        if data.get("tv_results"):
-            return data["tv_results"][0]["id"]
+        movie_results = data.get("movie_results") or []
+        tv_results = data.get("tv_results") or []
+        tv_episode_results = data.get("tv_episode_results") or []
+
+        if kind in ("series", "tv"):
+            if tv_results:
+                return tv_results[0]["id"]
+            if tv_episode_results and tv_episode_results[0].get("show_id"):
+                return tv_episode_results[0]["show_id"]
+            return None
+
+        if movie_results:
+            return movie_results[0]["id"]
+        if tv_results:
+            return tv_results[0]["id"]
+        if tv_episode_results and tv_episode_results[0].get("show_id"):
+            return tv_episode_results[0]["show_id"]
     except Exception as e:
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
     return None
+
+def parse_stream_id(content_type, raw_id):
+    """Parses Stremio stream id and resolves TMDB id + season/episode.
+
+    Supports IMDb ids (``tt...``) and TMDB-prefixed ids (``tmdb:...``),
+    including episode forms such as ``tmdb:224372:1:1``.
+    """
+    parts = raw_id.split(':')
+
+    # IMDb format: tt1234567[:season:episode]
+    if parts and parts[0].startswith('tt'):
+        imdb_id = parts[0]
+        season = parts[1] if len(parts) > 1 else None
+        episode = parts[2] if len(parts) > 2 else None
+        tmdb_id = get_tmdb_id(imdb_id, content_type)
+        return tmdb_id, season, episode
+
+    # TMDB format variants:
+    # - tmdb:224372[:season:episode]
+    # - tmdb:tv:224372[:season:episode]
+    if parts and parts[0] == 'tmdb':
+        tmdb_id = None
+        season = None
+        episode = None
+
+        if len(parts) >= 2 and parts[1].isdigit():
+            tmdb_id = int(parts[1])
+            season = parts[2] if len(parts) > 2 else None
+            episode = parts[3] if len(parts) > 3 else None
+        elif len(parts) >= 3 and parts[2].isdigit():
+            tmdb_id = int(parts[2])
+            season = parts[3] if len(parts) > 3 else None
+            episode = parts[4] if len(parts) > 4 else None
+
+        return tmdb_id, season, episode
+
+    return None, None, None
 
 def parse_subtitles(subtitle_list):
     """Parses VidZee subtitle list into Stremio format."""
@@ -255,11 +312,9 @@ def manifest():
 
 @app.route('/stream/<type>/<id>.json')
 def stream(type, id):
-    # ID format: tt1234567:1:1
-    parts = id.split(':')
-    imdb_id = parts[0]
-    season = parts[1] if len(parts) > 1 else None
-    episode = parts[2] if len(parts) > 2 else None
+    tmdb_id, season, episode = parse_stream_id(type, id)
+    if not tmdb_id:
+        return jsonify({"streams": []})
 
     # Sanitize season and episode to remove leading zeros (e.g. "01" -> "1")
     # This is crucial because VidZee API returns 404 for "01"
@@ -270,10 +325,6 @@ def stream(type, id):
             episode = str(int(episode))
     except ValueError:
         pass
-
-    tmdb_id = get_tmdb_id(imdb_id)
-    if not tmdb_id:
-        return jsonify({"streams": []})
 
     decryption_key = get_decryption_key()
     if not decryption_key:
