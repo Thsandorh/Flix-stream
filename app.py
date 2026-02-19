@@ -169,12 +169,19 @@ def get_tmdb_id(imdb_id, content_type=None):
         movie_results = data.get("movie_results") or []
         tv_results = data.get("tv_results") or []
         tv_episode_results = data.get("tv_episode_results") or []
+        tv_season_results = data.get("tv_season_results") or []
+        tv_season_show_id = next(
+            (item.get("show_id") for item in tv_season_results if item.get("show_id")),
+            None,
+        )
 
         if kind in ("series", "tv"):
             if tv_results:
                 return tv_results[0]["id"]
             if tv_episode_results and tv_episode_results[0].get("show_id"):
                 return tv_episode_results[0]["show_id"]
+            if tv_season_show_id:
+                return tv_season_show_id
             return None
 
         if movie_results:
@@ -183,8 +190,102 @@ def get_tmdb_id(imdb_id, content_type=None):
             return tv_results[0]["id"]
         if tv_episode_results and tv_episode_results[0].get("show_id"):
             return tv_episode_results[0]["show_id"]
+        if tv_season_show_id:
+            return tv_season_show_id
     except Exception as e:
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
+    return None
+
+@lru_cache(maxsize=2048)
+def get_series_context_from_imdb(imdb_id):
+    """Resolves show/season/episode context from an IMDb episode id."""
+    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+
+        tv_episode_results = data.get("tv_episode_results") or []
+        if tv_episode_results:
+            episode_info = tv_episode_results[0]
+            return (
+                episode_info.get("show_id"),
+                episode_info.get("season_number"),
+                episode_info.get("episode_number"),
+            )
+
+        tv_season_results = data.get("tv_season_results") or []
+        if tv_season_results:
+            season_info = tv_season_results[0]
+            return (
+                season_info.get("show_id"),
+                season_info.get("season_number"),
+                None,
+            )
+    except Exception as e:
+        app.logger.error(f"TMDB series context lookup failed for {imdb_id}: {e}")
+
+    return None, None, None
+
+def _extract_season_episode(tokens):
+    """Extract season/episode from tokenized id tail."""
+    if not tokens:
+        return None, None
+
+    season = None
+    episode = None
+    cleaned = [str(token).strip() for token in tokens if str(token).strip()]
+    lowered = [token.lower() for token in cleaned]
+
+    for token in lowered:
+        m = re.fullmatch(r"s(\d+)e(\d+)", token)
+        if m:
+            return m.group(1), m.group(2)
+
+    for token in lowered:
+        m = re.fullmatch(r"s(\d+)", token)
+        if m and not season:
+            season = m.group(1)
+        m = re.fullmatch(r"e(?:p)?(\d+)", token)
+        if m and not episode:
+            episode = m.group(1)
+
+    for idx, token in enumerate(lowered[:-1]):
+        next_token = lowered[idx + 1]
+        if token in ("s", "ss", "season") and next_token.isdigit() and not season:
+            season = next_token
+        if token in ("e", "ep", "episode") and next_token.isdigit() and not episode:
+            episode = next_token
+
+    if season and episode:
+        return season, episode
+
+    numeric_tokens = [token for token in lowered if token.isdigit()]
+    if not season and numeric_tokens:
+        season = numeric_tokens[0]
+    if not episode and len(numeric_tokens) > 1:
+        episode = numeric_tokens[1]
+
+    return season, episode
+
+def _normalize_episode_part(value):
+    """Normalize season/episode values to plain integer strings."""
+    if value is None:
+        return None
+
+    token = str(value).strip()
+    if not token:
+        return None
+
+    if token.isdigit():
+        return str(int(token))
+
+    match = re.search(r"\d+", token)
+    if match:
+        return str(int(match.group(0)))
+
     return None
 
 def parse_stream_id(content_type, raw_id):
@@ -193,14 +294,24 @@ def parse_stream_id(content_type, raw_id):
     Supports IMDb ids (``tt...``) and TMDB-prefixed ids (``tmdb:...``),
     including episode forms such as ``tmdb:224372:1:1``.
     """
-    parts = raw_id.split(':')
+    parts = [token for token in re.split(r'[:/]', raw_id) if token]
 
     # IMDb format: tt1234567[:season:episode]
     if parts and parts[0].startswith('tt'):
         imdb_id = parts[0]
-        season = parts[1] if len(parts) > 1 else None
-        episode = parts[2] if len(parts) > 2 else None
+        season, episode = _extract_season_episode(parts[1:])
         tmdb_id = get_tmdb_id(imdb_id, content_type)
+        kind = (content_type or "").lower()
+
+        if kind in ("series", "tv") and (not season or not episode or not tmdb_id):
+            hint_tmdb_id, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+            if not tmdb_id:
+                tmdb_id = hint_tmdb_id
+            if not season and hint_season is not None:
+                season = str(hint_season)
+            if not episode and hint_episode is not None:
+                episode = str(hint_episode)
+
         return tmdb_id, season, episode
 
     # TMDB format variants:
@@ -208,7 +319,7 @@ def parse_stream_id(content_type, raw_id):
     # - tmdb:tv:224372[:season:episode]
     # - tmdb:series:224372[:season:episode]
     # - tmdb:movie:12345
-    if parts and parts[0] == 'tmdb':
+    if parts and parts[0].lower() == 'tmdb':
         tmdb_id = None
         season = None
         episode = None
@@ -217,8 +328,7 @@ def parse_stream_id(content_type, raw_id):
         for i, token in enumerate(parts[1:], start=1):
             if token.isdigit():
                 tmdb_id = int(token)
-                season = parts[i + 1] if len(parts) > i + 1 else None
-                episode = parts[i + 2] if len(parts) > i + 2 else None
+                season, episode = _extract_season_episode(parts[i + 1:])
                 break
 
         return tmdb_id, season, episode
@@ -311,21 +421,22 @@ def index():
 def manifest():
     return jsonify(MANIFEST)
 
-@app.route('/stream/<type>/<id>.json')
+@app.route('/stream/<type>/<path:id>.json')
 def stream(type, id):
     tmdb_id, season, episode = parse_stream_id(type, id)
     if not tmdb_id:
         return jsonify({"streams": []})
 
-    # Sanitize season and episode to remove leading zeros (e.g. "01" -> "1")
-    # This is crucial because VidZee API returns 404 for "01"
-    try:
-        if season:
-            season = str(int(season))
-        if episode:
-            episode = str(int(episode))
-    except ValueError:
-        pass
+    kind = (type or "").lower()
+    season = _normalize_episode_part(season)
+    episode = _normalize_episode_part(episode)
+    if not season or not episode:
+        season = None
+        episode = None
+
+    # VidZee TV endpoint requires season and episode.
+    if kind in ("series", "tv") and (not season or not episode):
+        return jsonify({"streams": []})
 
     decryption_key = get_decryption_key()
     if not decryption_key:
