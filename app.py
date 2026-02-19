@@ -16,8 +16,8 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 MANIFEST = {
     "id": "org.flickystream.addon",
     "version": "1.0.0",
-    "name": "FlickyStream Addon",
-    "description": "Stream movies and TV shows from FlickyStream (VidZee).",
+    "name": "Flix-Streams",
+    "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
@@ -120,6 +120,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     return streams
 
 @app.route('/')
+@app.route('/configure')
 def index():
     return render_template('index.html')
 

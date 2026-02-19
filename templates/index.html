@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlickyStream Addon</title>
+    <title>Flix-Streams</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -86,8 +86,8 @@
     </style>
 </head>
 <body>
-    <h1>FlickyStream Addon</h1>
-    <p>Stream movies and TV shows from FlickyStream (VidZee).</p>
+    <h1>Flix-Streams</h1>
+    <p>Stream movies and TV shows from Flix-Streams (VidZee).</p>
 
     <div class="button-container">
         <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
@@ -97,31 +97,64 @@
     <div id="toast" class="toast">Manifest URL copied to clipboard!</div>
 
     <script>
+        function getManifestUrl() {
+            // Get the current URL and ensure we point to manifest.json correctly
+            // If the URL ends with 'configure', we strip it off.
+            // If it ends with a slash, we append manifest.json.
+            // If it's just the root domain with path, we append manifest.json relative to it.
+            let baseUrl = window.location.href;
+
+            // If we are at /configure, remove it
+            if (baseUrl.endsWith('/configure')) {
+                baseUrl = baseUrl.slice(0, -'/configure'.length);
+            }
+
+            // Remove trailing slash if present
+            if (baseUrl.endsWith('/')) {
+                baseUrl = baseUrl.slice(0, -1);
+            }
+
+            return baseUrl + '/manifest.json';
+        }
+
         function installAddon() {
-            const manifestUrl = window.location.origin + '/manifest.json';
+            const manifestUrl = getManifestUrl();
             const stremioUrl = manifestUrl.replace(/^https?:\/\//, 'stremio://');
             window.location.href = stremioUrl;
         }
 
         function copyManifest() {
-            const manifestUrl = window.location.origin + '/manifest.json';
-            navigator.clipboard.writeText(manifestUrl).then(() => {
-                showToast();
-            }, (err) => {
-                console.error('Could not copy text: ', err);
-                const textArea = document.createElement("textarea");
-                textArea.value = manifestUrl;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
+            const manifestUrl = getManifestUrl();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(manifestUrl).then(() => {
                     showToast();
-                } catch (err) {
-                    console.error('Fallback: Oops, unable to copy', err);
-                    alert("Failed to copy URL manually: " + manifestUrl);
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                    fallbackCopyTextToClipboard(manifestUrl);
+                });
+            } else {
+                fallbackCopyTextToClipboard(manifestUrl);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast();
+                } else {
+                    console.error('Fallback: Copy command failed');
+                    alert("Failed to copy URL manually: " + text);
                 }
-                document.body.removeChild(textArea);
-            });
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                alert("Failed to copy URL manually: " + text);
+            }
+            document.body.removeChild(textArea);
         }
 
         function showToast() {
