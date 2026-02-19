@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlickyStream Addon</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #121212;
+            color: white;
+            margin: 0;
+        }
+        h1 { margin-bottom: 20px; }
+        p { margin-bottom: 30px; color: #ccc; }
+        .button-container {
+            display: flex;
+            gap: 20px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .install-btn {
+            background-color: #8A5AAB; /* Stremio Purple */
+            color: white;
+        }
+        .install-btn:hover {
+            background-color: #9d6ec3;
+        }
+        .copy-btn {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+        }
+        .copy-btn:hover {
+            background-color: #444;
+        }
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            bottom: 30px;
+            font-size: 17px;
+        }
+        .toast.show {
+            visibility: visible;
+            -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @-webkit-keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+        @-webkit-keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
+        }
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
+        }
+    </style>
+</head>
+<body>
+    <h1>FlickyStream Addon</h1>
+    <p>Stream movies and TV shows from FlickyStream (VidZee).</p>
+
+    <div class="button-container">
+        <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
+        <button id="copy-btn" class="copy-btn" onclick="copyManifest()">Copy Manifest URL</button>
+    </div>
+
+    <div id="toast" class="toast">Manifest URL copied to clipboard!</div>
+
+    <script>
+        function installAddon() {
+            const manifestUrl = window.location.origin + '/manifest.json';
+            const stremioUrl = manifestUrl.replace(/^https?:\/\//, 'stremio://');
+            window.location.href = stremioUrl;
+        }
+
+        function copyManifest() {
+            const manifestUrl = window.location.origin + '/manifest.json';
+            navigator.clipboard.writeText(manifestUrl).then(() => {
+                showToast();
+            }, (err) => {
+                console.error('Could not copy text: ', err);
+                const textArea = document.createElement("textarea");
+                textArea.value = manifestUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast();
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                    alert("Failed to copy URL manually: " + manifestUrl);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
+        function showToast() {
+            const x = document.getElementById("toast");
+            x.className = "toast show";
+            setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+        }
+    </script>
+</body>
+</html>

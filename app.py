@@ -2,7 +2,7 @@ import os
 import base64
 import hashlib
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
 from concurrent.futures import ThreadPoolExecutor
 
@@ -118,6 +118,10 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     except Exception:
         pass
     return streams
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/manifest.json')
 def manifest():
