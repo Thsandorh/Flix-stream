@@ -2,12 +2,21 @@ import os
 import re
 import base64
 import hashlib
+import time
 import requests
+from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
 from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
 
 # Config
 # For a production addon, these should be moved to environment variables.
@@ -85,8 +94,15 @@ LANG_MAP = {
     "Bosnian": "bos",
 }
 
+# Simple cache for decryption key
+_KEY_CACHE = {"key": None, "timestamp": 0}
+
 def get_decryption_key():
-    """Fetches and decrypts the current VidZee API key."""
+    """Fetches and decrypts the current VidZee API key with caching (1 hour)."""
+    now = time.time()
+    if _KEY_CACHE["key"] and (now - _KEY_CACHE["timestamp"] < 3600):
+        return _KEY_CACHE["key"]
+
     try:
         r = requests.get("https://core.vidzee.wtf/api-key", headers=COMMON_HEADERS, timeout=10)
         r.raise_for_status()
@@ -101,7 +117,12 @@ def get_decryption_key():
 
         key = hashlib.sha256(MASTER_KEY.encode()).digest()
         cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-        return cipher.decrypt_and_verify(ciphertext, tag).decode()
+        decrypted_key = cipher.decrypt_and_verify(ciphertext, tag).decode()
+
+        # Update cache
+        _KEY_CACHE["key"] = decrypted_key
+        _KEY_CACHE["timestamp"] = now
+        return decrypted_key
     except Exception as e:
         app.logger.error(f"Failed to get decryption key: {e}")
         return None
@@ -129,6 +150,7 @@ def decrypt_link(encrypted_link, key_str):
     except Exception:
         return None
 
+@lru_cache(maxsize=1024)
 def get_tmdb_id(imdb_id):
     """Maps IMDB ID to TMDB ID using the TMDB API."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
@@ -258,7 +280,8 @@ def stream(type, id):
         return jsonify({"streams": []})
 
     all_streams = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    # Increase workers to ensure all server requests start immediately
+    with ThreadPoolExecutor(max_workers=10) as executor:
         results = executor.map(
             lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
             SERVERS
