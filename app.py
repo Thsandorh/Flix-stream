@@ -26,7 +26,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -50,6 +50,13 @@ COMMON_HEADERS = {
     "Referer": "https://player.vidzee.wtf/",
     "Origin": "https://player.vidzee.wtf"
 }
+
+STREAM_HEALTHCHECK_ENABLED = os.environ.get("STREAM_HEALTHCHECK", "1").lower() not in ("0", "false", "no")
+try:
+    STREAM_HEALTHCHECK_TIMEOUT = float(os.environ.get("STREAM_HEALTHCHECK_TIMEOUT", "2.5"))
+except ValueError:
+    STREAM_HEALTHCHECK_TIMEOUT = 2.5
+STREAM_HEALTHCHECK_CACHE_TTL = 300
 
 LANG_MAP = {
     "English": "eng",
@@ -97,6 +104,7 @@ LANG_MAP = {
 
 # Simple cache for decryption key
 _KEY_CACHE = {"key": None, "timestamp": 0}
+_HEALTH_CACHE = {}
 
 def get_decryption_key():
     """Fetches and decrypts the current VidZee API key with caching (1 hour)."""
@@ -289,6 +297,119 @@ def _normalize_episode_part(value):
 
     return None
 
+def _format_size(size_bytes):
+    if size_bytes is None:
+        return None
+
+    size = float(size_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024.0 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return None
+
+def _extract_size_from_headers(headers):
+    content_range = headers.get("Content-Range", "")
+    m = re.search(r"/(\d+)$", content_range)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+
+    content_length = headers.get("Content-Length", "")
+    if content_length.isdigit():
+        size = int(content_length)
+        if size > 1:
+            return size
+    return None
+
+def _health_cache_get(url):
+    cached = _HEALTH_CACHE.get(url)
+    if not cached:
+        return None
+    if time.time() - cached["ts"] > STREAM_HEALTHCHECK_CACHE_TTL:
+        _HEALTH_CACHE.pop(url, None)
+        return None
+    return cached["ok"], cached["size"]
+
+def _health_cache_set(url, ok, size_bytes=None):
+    _HEALTH_CACHE[url] = {"ok": bool(ok), "size": size_bytes, "ts": time.time()}
+
+def _probe_stream_url(url, is_hls):
+    if not STREAM_HEALTHCHECK_ENABLED:
+        return True, None
+
+    cached = _health_cache_get(url)
+    if cached is not None:
+        return cached
+
+    timeout = (1.0, STREAM_HEALTHCHECK_TIMEOUT)
+
+    mp4_header_variants = [
+        {
+            "User-Agent": COMMON_HEADERS["User-Agent"],
+            "Referer": COMMON_HEADERS["Referer"],
+            "Origin": COMMON_HEADERS["Origin"],
+            "Range": "bytes=0-0",
+        },
+        {
+            "User-Agent": COMMON_HEADERS["User-Agent"],
+            "Range": "bytes=0-0",
+        }
+    ]
+
+    hls_header_variants = [
+        {
+            "User-Agent": COMMON_HEADERS["User-Agent"],
+            "Referer": COMMON_HEADERS["Referer"],
+            "Origin": COMMON_HEADERS["Origin"],
+        },
+        {
+            "User-Agent": COMMON_HEADERS["User-Agent"],
+        }
+    ]
+
+    headers_to_try = hls_header_variants if is_hls else mp4_header_variants
+
+    for headers in headers_to_try:
+        response = None
+        try:
+            response = requests.get(
+                url, headers=headers, stream=True, timeout=timeout, allow_redirects=True
+            )
+
+            if is_hls:
+                if response.status_code != 200:
+                    continue
+                content_type = (response.headers.get("Content-Type") or "").lower()
+                chunk = next(response.iter_content(chunk_size=2048), b"")
+                body = chunk.decode(errors="ignore")
+                ok = (
+                    "mpegurl" in content_type
+                    or "#EXTM3U" in body
+                    or ".ts" in body
+                    or ".m4s" in body
+                )
+                if ok:
+                    _health_cache_set(url, True, None)
+                    return True, None
+            else:
+                if response.status_code in (200, 206):
+                    size_bytes = _extract_size_from_headers(response.headers)
+                    _health_cache_set(url, True, size_bytes)
+                    return True, size_bytes
+        except Exception:
+            pass
+        finally:
+            if response is not None:
+                response.close()
+
+    _health_cache_set(url, False, None)
+    return False, None
+
 def _decode_stream_id(raw_id):
     """Decode URL-encoded stream ids, including double-encoded variants."""
     decoded = str(raw_id or "")
@@ -424,17 +545,34 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
             for u in data["url"]:
                 decrypted_url = decrypt_link(u["link"], decryption_key)
                 if decrypted_url:
-                    stream_obj = {
-                        "name": f"Flicky - {sr_info['name']}",
-                        "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
-                        "url": decrypted_url,
-                        "behaviorHints": {
+                    stream_type = str(u.get("type", "")).lower()
+                    is_hls = stream_type == "hls" or decrypted_url.lower().endswith(".m3u8")
+                    is_mp4 = ".mp4" in decrypted_url.lower()
+                    reachable, size_bytes = _probe_stream_url(decrypted_url, is_hls=is_hls)
+                    if not reachable:
+                        app.logger.info("Skipping unreachable stream from server %s: %s", sr, decrypted_url)
+                        continue
+
+                    label = "MP4" if is_mp4 else ("HLS" if is_hls else (stream_type.upper() or "STREAM"))
+                    size_label = _format_size(size_bytes)
+                    info_label = f"{label} | {size_label}" if size_label else label
+
+                    behavior_hints = {}
+                    if not is_mp4:
+                        behavior_hints = {
                             "notWebReady": True,
                             "proxyHeaders": {
                                 "request": COMMON_HEADERS
                             }
                         }
+
+                    stream_obj = {
+                        "name": f"Flicky - {sr_info['name']}",
+                        "title": f"{u.get('lang', 'English')} {u.get('message', '')} [{info_label}]\n{u.get('name', '')}",
+                        "url": decrypted_url,
                     }
+                    if behavior_hints:
+                        stream_obj["behaviorHints"] = behavior_hints
                     if subtitles:
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
