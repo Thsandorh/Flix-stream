@@ -175,9 +175,9 @@ def get_tmdb_id(imdb_id, content_type=None):
                 return tv_episode_results[0]["show_id"]
 
         if movie_results:
-            return data["movie_results"][0]["id"]
+            return movie_results[0]["id"]
         if tv_results:
-            return data["tv_results"][0]["id"]
+            return tv_results[0]["id"]
         if tv_episode_results and tv_episode_results[0].get("show_id"):
             return tv_episode_results[0]["show_id"]
     except Exception as e:
