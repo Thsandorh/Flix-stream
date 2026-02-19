@@ -1,0 +1,10 @@
+{
+  "name": "vidzee-stremio-addon",
+  "version": "1.0.0",
+  "description": "Node.js version of VidZee Stremio Addon",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2"
+  }
+}
