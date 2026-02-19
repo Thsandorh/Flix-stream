@@ -150,19 +150,36 @@ def decrypt_link(encrypted_link, key_str):
     except Exception:
         return None
 
-@lru_cache(maxsize=1024)
-def get_tmdb_id(imdb_id):
-    """Maps IMDB ID to TMDB ID using the TMDB API."""
+@lru_cache(maxsize=2048)
+def get_tmdb_id(imdb_id, content_type=None):
+    """Maps IMDB ID to TMDB ID using the TMDB API.
+
+    For series requests Stremio can sometimes pass episode-level IMDb IDs.
+    In that case TMDB responds with ``tv_episode_results`` instead of
+    ``tv_results``. We map those back to the parent show via ``show_id``.
+    """
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
     headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
-        if data.get("movie_results"):
+        movie_results = data.get("movie_results") or []
+        tv_results = data.get("tv_results") or []
+        tv_episode_results = data.get("tv_episode_results") or []
+
+        if content_type == "series":
+            if tv_results:
+                return tv_results[0]["id"]
+            if tv_episode_results and tv_episode_results[0].get("show_id"):
+                return tv_episode_results[0]["show_id"]
+
+        if movie_results:
             return data["movie_results"][0]["id"]
-        if data.get("tv_results"):
+        if tv_results:
             return data["tv_results"][0]["id"]
+        if tv_episode_results and tv_episode_results[0].get("show_id"):
+            return tv_episode_results[0]["show_id"]
     except Exception as e:
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
     return None
@@ -271,7 +288,7 @@ def stream(type, id):
     except ValueError:
         pass
 
-    tmdb_id = get_tmdb_id(imdb_id)
+    tmdb_id = get_tmdb_id(imdb_id, type)
     if not tmdb_id:
         return jsonify({"streams": []})
 
