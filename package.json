@@ -1,0 +1,22 @@
+{
+  "name": "flickystream-stremio-addon",
+  "version": "1.0.0",
+  "description": "Stremio addon for FlickyStream - streams movies and TV shows via VidZee",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:53402/git/Thsandorh/Flix-stream"
+  },
+  "keywords": ["stremio", "addon", "flickystream", "vidzee", "streaming"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.13.5",
+    "crypto-js": "^4.2.0",
+    "stremio-addon-sdk": "^1.6.10"
+  }
+}
