@@ -4,6 +4,7 @@ import base64
 import hashlib
 import time
 import requests
+from urllib.parse import unquote
 from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
@@ -288,13 +289,24 @@ def _normalize_episode_part(value):
 
     return None
 
+def _decode_stream_id(raw_id):
+    """Decode URL-encoded stream ids, including double-encoded variants."""
+    decoded = str(raw_id or "")
+    for _ in range(2):
+        next_decoded = unquote(decoded)
+        if next_decoded == decoded:
+            break
+        decoded = next_decoded
+    return decoded
+
 def parse_stream_id(content_type, raw_id):
     """Parses Stremio stream id and resolves TMDB id + season/episode.
 
     Supports IMDb ids (``tt...``) and TMDB-prefixed ids (``tmdb:...``),
     including episode forms such as ``tmdb:224372:1:1``.
     """
-    parts = [token for token in re.split(r'[:/]', raw_id) if token]
+    decoded_id = _decode_stream_id(raw_id)
+    parts = [token for token in re.split(r'[:/]', decoded_id) if token]
 
     # IMDb format: tt1234567[:season:episode]
     if parts and parts[0].startswith('tt'):

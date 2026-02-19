@@ -176,6 +176,22 @@ class TestTmdbMapping(unittest.TestCase):
 
         self.assertEqual((tmdb_id, season, episode), (60574, '1', '1'))
 
+    @patch('app.get_tmdb_id')
+    def test_parse_stream_id_supports_urlencoded_imdb_episode(self, mock_map):
+        mock_map.return_value = 224372
+
+        tmdb_id, season, episode = parse_stream_id('series', 'tt27497448%3A1%3A1')
+
+        self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
+
+    @patch('app.get_tmdb_id')
+    def test_parse_stream_id_supports_double_urlencoded_imdb_episode(self, mock_map):
+        mock_map.return_value = 224372
+
+        tmdb_id, season, episode = parse_stream_id('series', 'tt27497448%253A1%253A1')
+
+        self.assertEqual((tmdb_id, season, episode), (224372, '1', '1'))
+
 
 if __name__ == '__main__':
     unittest.main()
