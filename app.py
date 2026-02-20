@@ -531,6 +531,8 @@ def fetch_aniways_streams(anime_id, episode_num):
                 stream_data = r_stream.json()
                 source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
                 candidate_urls = []
+                # Keep stream playback headers minimal for better player compatibility (esp. mobile).
+                request_headers = {}
 
                 direct_url = stream_data.get("url")
                 if isinstance(direct_url, str) and direct_url:
@@ -564,7 +566,11 @@ def fetch_aniways_streams(anime_id, episode_num):
                 request_headers = dict(ANIWAYS_COMMON_HEADERS)
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
-                    request_headers.update(extra_headers)
+                    normalized_extra = {str(k).lower(): v for k, v in extra_headers.items()}
+                    for src, dst in (("referer", "Referer"), ("origin", "Origin"), ("user-agent", "User-Agent"), ("user_agent", "User-Agent")):
+                        val = normalized_extra.get(src)
+                        if isinstance(val, str) and val:
+                            request_headers[dst] = val
 
                 subtitles = []
                 for track in (stream_data.get("tracks") or []):
