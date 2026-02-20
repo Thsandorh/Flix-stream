@@ -1,1011 +1,109 @@
-import json
 import os
-import re
-import base64
-import hashlib
-import time
-import requests
-from urllib.parse import unquote, urlencode
-from functools import lru_cache
-from flask import Flask, jsonify, render_template, request
-from Crypto.Cipher import AES
-from Crypto.Protocol.KDF import PBKDF2
-from Crypto.Hash import SHA256
-from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
+
+from flask import Flask, jsonify, render_template, request
+
+from flix_stream.anime import (
+    decode_b64_loose as _decode_b64_loose,
+    extract_aniways_proxy_hls_details as _extract_aniways_proxy_hls_details,
+    fetch_aniways_search_page as _fetch_aniways_search_page,
+    fetch_aniways_streams,
+    get_kitsu_anime_context,
+    is_aniways_api_proxy_url as _is_aniways_api_proxy_url,
+    is_likely_aniways_stream_url as _is_likely_aniways_stream_url,
+    normalize_title_for_match as _normalize_title_for_match,
+    resolve_aniways_id_from_kitsu,
+)
+from flix_stream.config import (
+    ANIWAYS_API_BASE,
+    ANIWAYS_COMMON_HEADERS,
+    AUTOEMBED_COMMON_HEADERS,
+    AUTOEMBED_SERVERS,
+    COMMON_HEADERS,
+    KITSU_API_BASE,
+    LANG_MAP,
+    MANIFEST,
+    MASTER_KEY,
+    SERVERS,
+    TMDB_TOKEN,
+    VIXSRC_BASE_URL,
+    VIXSRC_COMMON_HEADERS,
+)
+from flix_stream.crypto import (
+    _KEY_CACHE,
+    decrypt_autoembed_response,
+    decrypt_link,
+    get_decryption_key,
+)
+from flix_stream.ids import (
+    decode_stream_id as _decode_stream_id,
+    normalize_episode_part as _normalize_episode_part,
+    provider_rank,
+)
+from flix_stream.providers import (
+    extract_braced_js_object as _extract_braced_js_object,
+    extract_vixsrc_playlist_url as _extract_vixsrc_playlist_url,
+    fetch_autoembed_server_streams,
+    fetch_server_streams,
+    fetch_vixsrc_streams,
+    needs_stremio_proxy as _needs_stremio_proxy,
+)
+from flix_stream.subtitles import parse_subtitles
+from flix_stream.tmdb import (
+    get_series_context_from_imdb,
+    get_tmdb_id,
+    get_tmdb_id_from_cinemeta,
+)
+
 
 app = Flask(__name__)
 
+
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', '*')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
     return response
 
-# Config
-# For a production addon, these should be moved to environment variables.
-TMDB_TOKEN = os.environ.get("TMDB_TOKEN", "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0YzY4ZTRjYjBhMDM4OTk0MTliNmVmYTZiOGJjOGJiZSIsIm5iZiI6MTcyNzUwNjM2NS40NDQxNjUsInN1YiI6IjY2NWQ5YmMwYTVlMDU0MzUwMTQ5MWUwNSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.8OL7WQIZGWr9tRfmSkRFIsaf1Wy0ksrOGDCB4KcocW4")
-MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
-MANIFEST = {
-    "id": "org.flickystream.addon",
-    "version": "1.0.35",
-    "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee, AutoEmbed, VixSrc, Aniways, and Kitsu IDs.",
-    "logo": "/static/icon.png",
-    "resources": ["stream"],
-    "types": ["movie", "series"],
-    "idPrefixes": ["tt", "aniways", "kitsu"],
-    "catalogs": []
-}
-
-SERVERS = [
-    {"id": "1", "name": "Duke"},
-    {"id": "2", "name": "Glory"},
-    {"id": "4", "name": "Atlas"},
-    {"id": "5", "name": "Drag"},
-    {"id": "6", "name": "Achilles"},
-    {"id": "9", "name": "Hindi"},
-]
-
-COMMON_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Referer": "https://player.vidzee.wtf/",
-    "Origin": "https://player.vidzee.wtf"
-}
-
-AUTOEMBED_SERVERS = [
-    {"id": "2", "name": "Glory"},
-    {"id": "3", "name": "Server 3"},
-    {"id": "7", "name": "Server 7"},
-    {"id": "9", "name": "Hindi"},
-]
-
-AUTOEMBED_COMMON_HEADERS = {
-    "User-Agent": COMMON_HEADERS["User-Agent"],
-    "Referer": "https://test.autoembed.cc/",
-    "Origin": "https://test.autoembed.cc",
-}
-
-VIXSRC_BASE_URL = "https://vixsrc.to"
-VIXSRC_COMMON_HEADERS = {
-    "User-Agent": COMMON_HEADERS["User-Agent"],
-    "Referer": f"{VIXSRC_BASE_URL}/",
-    "Origin": VIXSRC_BASE_URL,
-}
-
-ANIWAYS_API_BASE = "https://api.aniways.xyz"
-ANIWAYS_COMMON_HEADERS = {
-    "User-Agent": COMMON_HEADERS["User-Agent"],
-    "Referer": "https://aniways.xyz/",
-    "Origin": "https://aniways.xyz",
-}
-KITSU_API_BASE = "https://kitsu.io/api/edge"
-
-LANG_MAP = {
-    "English": "eng",
-    "French": "fre",
-    "German": "ger",
-    "Spanish": "spa",
-    "Italian": "ita",
-    "Portuguese": "por",
-    "Portuguese (BR)": "pob",
-    "Hungarian": "hun",
-    "Russian": "rus",
-    "Ukrainian": "ukr",
-    "Dutch": "nld",
-    "Polish": "pol",
-    "Romanian": "rum",
-    "Czech": "cze",
-    "Greek": "gre",
-    "Turkish": "tur",
-    "Arabic": "ara",
-    "Hebrew": "heb",
-    "Japanese": "jpn",
-    "Korean": "kor",
-    "Chinese": "chi", "Chinese (traditional)": "chi",
-    "Vietnamese": "vie",
-    "Thai": "tha",
-    "Indonesian": "ind",
-    "Swedish": "swe",
-    "Norwegian": "nor",
-    "Danish": "dan",
-    "Finnish": "fin",
-    "Slovak": "slo",
-    "Slovenian": "slv",
-    "Croatian": "hrv",
-    "Serbian": "srp",
-    "Bulgarian": "bul",
-    "Estonian": "est",
-    "Latvian": "lav",
-    "Lithuanian": "lit",
-    "Malay": "may",
-    "Persian": "per",
-    "Albanian": "sqi",
-    "Macedonian": "mkd",
-    "Bosnian": "bos",
-}
-
-# Simple cache for decryption key
-_KEY_CACHE = {"key": None, "timestamp": 0}
-
-def get_decryption_key():
-    """Fetches and decrypts the current VidZee API key with caching (1 hour)."""
-    now = time.time()
-    if _KEY_CACHE["key"] and (now - _KEY_CACHE["timestamp"] < 3600):
-        return _KEY_CACHE["key"]
-
-    try:
-        r = requests.get("https://core.vidzee.wtf/api-key", headers=COMMON_HEADERS, timeout=10)
-        r.raise_for_status()
-        encrypted_data = base64.b64decode(r.text.strip())
-
-        if len(encrypted_data) <= 28:
-            return None
-
-        iv = encrypted_data[:12]
-        tag = encrypted_data[12:28]
-        ciphertext = encrypted_data[28:]
-
-        key = hashlib.sha256(MASTER_KEY.encode()).digest()
-        cipher = AES.new(key, AES.MODE_GCM, nonce=iv)
-        decrypted_key = cipher.decrypt_and_verify(ciphertext, tag).decode()
-        
-        # Update cache
-        _KEY_CACHE["key"] = decrypted_key
-        _KEY_CACHE["timestamp"] = now
-        return decrypted_key
-    except Exception as e:
-        app.logger.error(f"Failed to get decryption key: {e}")
-        return None
-
-def decrypt_link(encrypted_link, key_str):
-    """Decrypts a VidZee server link using AES-CBC."""
-    try:
-        decoded = base64.b64decode(encrypted_link).decode()
-        if ':' not in decoded:
-            return None
-
-        iv_b64, cipher_b64 = decoded.split(':')
-        iv = base64.b64decode(iv_b64)
-        ciphertext = base64.b64decode(cipher_b64)
-
-        key = key_str.encode().ljust(32, b'\0')
-        cipher = AES.new(key, AES.MODE_CBC, iv=iv)
-        decrypted = cipher.decrypt(ciphertext)
-
-        padding_len = decrypted[-1]
-        if padding_len > 16: # Sanity check for padding
-            return None
-
-        return decrypted[:-padding_len].decode()
-    except Exception:
-        return None
-
-@lru_cache(maxsize=2048)
-def get_tmdb_id(imdb_id, content_type=None):
-    """Maps IMDb id to TMDB id with type-aware selection."""
-    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
-    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+def parse_stream_id(content_type, raw_id):
+    """Parse Stremio content ids into a provider id + optional season/episode."""
+    decoded_id = _decode_stream_id(raw_id)
+    parts = [p for p in decoded_id.split(":") if p]
     kind = (content_type or "").lower()
 
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        movie_results = data.get("movie_results") or []
-        tv_results = data.get("tv_results") or []
-        tv_episode_results = data.get("tv_episode_results") or []
-        tv_season_results = data.get("tv_season_results") or []
-        tv_season_show_id = next(
-            (item.get("show_id") for item in tv_season_results if item.get("show_id")),
-            None,
-        )
+    if not parts:
+        return None, None, None
 
-        if kind in ("series", "tv"):
-            if tv_results:
-                return tv_results[0]["id"]
-            if tv_episode_results and tv_episode_results[0].get("show_id"):
-                return tv_episode_results[0]["show_id"]
-            if tv_season_show_id:
-                return tv_season_show_id
-            return None
-
-        if kind == "movie":
-            if movie_results:
-                return movie_results[0]["id"]
-            return None
-
-        # Fallback if type is unknown.
-        if movie_results:
-            return movie_results[0]["id"]
-        if tv_results:
-            return tv_results[0]["id"]
-        if tv_episode_results and tv_episode_results[0].get("show_id"):
-            return tv_episode_results[0]["show_id"]
-        if tv_season_show_id:
-            return tv_season_show_id
-    except Exception as e:
-        app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
-
-    # Fallback: Cinemeta often still exposes moviedb_id when TMDB /find misses.
-    fallback_tmdb_id = get_tmdb_id_from_cinemeta(imdb_id, kind)
-    if fallback_tmdb_id:
-        return fallback_tmdb_id
-
-    return None
-
-@lru_cache(maxsize=2048)
-def get_tmdb_id_from_cinemeta(imdb_id, content_type=None):
-    """Fallback IMDb->TMDB mapping via Cinemeta meta endpoint."""
-    kind = (content_type or "").lower()
-    if kind in ("series", "tv"):
-        meta_types = ["series"]
-    elif kind == "movie":
-        meta_types = ["movie"]
-    else:
-        meta_types = ["movie", "series"]
-
-    headers = {"User-Agent": COMMON_HEADERS["User-Agent"]}
-    for meta_type in meta_types:
-        url = f"https://v3-cinemeta.strem.io/meta/{meta_type}/{imdb_id}.json"
+    if parts[0].lower() == "tmdb":
+        if len(parts) < 2:
+            return None, None, None
         try:
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code != 200:
-                continue
-            data = r.json()
-            meta = data.get("meta") if isinstance(data, dict) else None
-            moviedb_id = meta.get("moviedb_id") if isinstance(meta, dict) else None
-            if moviedb_id is None:
-                continue
-            return int(moviedb_id)
+            content_id = int(parts[1])
         except Exception:
-            continue
-
-    return None
-
-@lru_cache(maxsize=2048)
-def get_series_context_from_imdb(imdb_id):
-    """Resolve show/season/episode context from an IMDb episode id."""
-    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
-    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
-
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-
-        tv_episode_results = data.get("tv_episode_results") or []
-        if tv_episode_results:
-            item = tv_episode_results[0]
-            return item.get("show_id"), item.get("season_number"), item.get("episode_number")
-
-        tv_season_results = data.get("tv_season_results") or []
-        if tv_season_results:
-            item = tv_season_results[0]
-            return item.get("show_id"), item.get("season_number"), None
-    except Exception as e:
-        app.logger.error(f"TMDB series context lookup failed for {imdb_id}: {e}")
-
-    return None, None, None
-
-def _decode_stream_id(raw_id):
-    """Decode URL-encoded stream ids, including double-encoded variants."""
-    decoded = str(raw_id or "")
-    for _ in range(2):
-        next_decoded = unquote(decoded)
-        if next_decoded == decoded:
-            break
-        decoded = next_decoded
-    return decoded
-
-def _normalize_episode_part(value):
-    if value is None:
-        return None
-    token = str(value).strip()
-    if not token:
-        return None
-    if token.isdigit():
-        return str(int(token))
-    m = re.search(r"\d+", token)
-    if m:
-        return str(int(m.group(0)))
-    return None
-
-def _needs_stremio_proxy(decrypted_url):
-    """Avoid double-proxying already wrapped upstream proxy URLs."""
-    lowered = str(decrypted_url or "").lower()
-    if "/proxy/m3u8/" in lowered or "/proxy/hls/" in lowered:
-        return False
-    return True
-
-def decrypt_autoembed_response(data_json):
-    """Decrypt AutoEmbed API response using PBKDF2 and AES-CBC."""
-    try:
-        payload = data_json
-        if isinstance(payload, dict) and "data" in payload:
-            inner_json_str = base64.b64decode(payload["data"]).decode("utf-8")
-            payload = json.loads(inner_json_str)
-
-        key_hex = payload.get("key")
-        iv_hex = payload.get("iv")
-        salt_hex = payload.get("salt")
-        iterations = int(payload.get("iterations", 0))
-        encrypted_data_b64 = payload.get("encryptedData")
-
-        if not all([key_hex, iv_hex, salt_hex, encrypted_data_b64]) or iterations <= 0:
-            return None
-
-        salt = bytes.fromhex(salt_hex)
-        iv = bytes.fromhex(iv_hex)
-        encrypted_data = base64.b64decode(encrypted_data_b64)
-        key = PBKDF2(key_hex, salt, dkLen=32, count=iterations, hmac_hash_module=SHA256)
-
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
-        return json.loads(decrypted_data.decode("utf-8"))
-    except Exception as e:
-        app.logger.error(f"AutoEmbed response decryption failed: {e}")
-        return None
-
-def parse_subtitles(subtitle_list):
-    """Parses VidZee subtitle list into Stremio format."""
-    parsed = []
-    if not subtitle_list:
-        return parsed
-
-    for sub in subtitle_list:
-        lang_name = sub.get("lang", "")
-        url = sub.get("url", "")
-        if not url:
-            continue
-            
-        # Try to map language name to ISO 639-2
-        # Use simple mapping
-        iso_code = LANG_MAP.get(lang_name)
-        if not iso_code:
-             # Try stripping numbers at end? "English2" -> "English"
-             base_lang = re.sub(r'\d+$', '', lang_name).strip()
-             iso_code = LANG_MAP.get(base_lang)
-
-        if not iso_code:
-             # Just use the name if we can't map it.
-             # Ideally Stremio wants 3-letter codes but it might fallback gracefully.
-             iso_code = lang_name
-
-        parsed.append({
-            "url": url,
-            "lang": iso_code,
-            "id": lang_name # Use original name as ID to be unique
-        })
-    return parsed
-
-def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
-    """Worker function to fetch streams from a specific server."""
-    sr = sr_info["id"]
-    api_url = f"https://player.vidzee.wtf/api/server?id={tmdb_id}&sr={sr}"
-    if season and episode:
-        api_url += f"&ss={season}&ep={episode}"
-
-    streams = []
-    try:
-        r = requests.get(api_url, headers=COMMON_HEADERS, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        
-        # Parse subtitles if available
-        # The key might be "subtitle", "subtitles", or "tracks" depending on API version/response
-        raw_subs = data.get("subtitle", [])
-        if not raw_subs:
-            raw_subs = data.get("subtitles", [])
-        if not raw_subs:
-            raw_subs = data.get("tracks", [])
-            
-        subtitles = parse_subtitles(raw_subs)
-        
-        if data.get("url"):
-            for u in data["url"]:
-                decrypted_url = decrypt_link(u["link"], decryption_key)
-                if decrypted_url:
-                    behavior_hints = {}
-                    if _needs_stremio_proxy(decrypted_url):
-                        behavior_hints = {
-                            "notWebReady": True,
-                            "proxyHeaders": {
-                                "request": COMMON_HEADERS
-                            }
-                        }
-
-                    stream_obj = {
-                        "name": f"VidZee - {sr_info['name']}",
-                        "title": f"[VidZee] {u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
-                        "url": decrypted_url
-                    }
-                    if behavior_hints:
-                        stream_obj["behaviorHints"] = behavior_hints
-                    if subtitles:
-                        stream_obj["subtitles"] = subtitles
-                    streams.append(stream_obj)
-    except Exception as e:
-        app.logger.error(f"Error fetching streams for server {sr}: {e}")
-    return streams
-
-def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
-    """Fetch streams from AutoEmbed API for one server."""
-    sr = sr_info["id"]
-    api_url = f"https://test.autoembed.cc/api/server?id={tmdb_id}&sr={sr}"
-    if season and episode:
-        api_url += f"&ss={season}&ep={episode}"
-        referer = f"https://test.autoembed.cc/embed/tv/{tmdb_id}/{season}/{episode}"
-    else:
-        referer = f"https://test.autoembed.cc/embed/movie/{tmdb_id}"
-
-    headers = AUTOEMBED_COMMON_HEADERS.copy()
-    headers["Referer"] = referer
-
-    streams = []
-    try:
-        r = requests.get(api_url, headers=headers, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        decrypted_data = decrypt_autoembed_response(data)
-        if not decrypted_data:
-            return streams
-
-        raw_subs = (
-            decrypted_data.get("tracks", [])
-            or decrypted_data.get("subtitles", [])
-            or decrypted_data.get("subtitle", [])
-        )
-        subtitles = parse_subtitles(raw_subs)
-
-        stream_url = decrypted_data.get("url")
-        url_candidates = stream_url if isinstance(stream_url, list) else [stream_url]
-        for candidate in url_candidates:
-            if not candidate:
-                continue
-            stream_obj = {
-                "name": f"AutoEmbed - {sr_info['name']}",
-                "title": f"[AutoEmbed] {sr_info['name']}",
-                "url": candidate,
-                "behaviorHints": {
-                    "notWebReady": True,
-                    "proxyHeaders": {
-                        "request": headers
-                    }
-                }
-            }
-            if subtitles:
-                stream_obj["subtitles"] = subtitles
-            streams.append(stream_obj)
-    except Exception as e:
-        app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
-    return streams
-
-def _extract_braced_js_object(text, from_index):
-    start = str(text or "").find("{", max(0, int(from_index or 0)))
-    if start < 0:
-        return None
-
-    depth = 0
-    in_string = None
-    escaped = False
-    payload = str(text)
-
-    for idx in range(start, len(payload)):
-        ch = payload[idx]
-        if in_string:
-            if escaped:
-                escaped = False
-                continue
-            if ch == "\\":
-                escaped = True
-                continue
-            if ch == in_string:
-                in_string = None
-            continue
-
-        if ch in ("'", '"'):
-            in_string = ch
-            continue
-        if ch == "{":
-            depth += 1
-            continue
-        if ch == "}":
-            depth -= 1
-            if depth == 0:
-                return payload[start:idx + 1]
-    return None
-
-def _extract_vixsrc_playlist_url(html_text):
-    html = str(html_text or "")
-    marker = "window.masterPlaylist"
-    marker_idx = html.find(marker)
-    if marker_idx < 0:
-        return None
-
-    assign_idx = html.find("=", marker_idx)
-    if assign_idx < 0:
-        return None
-
-    master_obj = _extract_braced_js_object(html, assign_idx)
-    if not master_obj:
-        return None
-
-    url_match = re.search(r"url\s*:\s*['\"]([^'\"]+)['\"]", master_obj)
-    if not url_match:
-        return None
-    base_url = url_match.group(1).strip()
-    if not base_url:
-        return None
-    if base_url.startswith("/"):
-        base_url = f"{VIXSRC_BASE_URL}{base_url}"
-
-    params = {}
-    params_key = re.search(r"\bparams\s*:", master_obj)
-    if params_key:
-        params_obj = _extract_braced_js_object(master_obj, params_key.end())
-        if params_obj:
-            pairs = re.findall(
-                r"['\"]?([a-zA-Z0-9_]+)['\"]?\s*:\s*(?:['\"]([^'\"]*)['\"]|([0-9]+(?:\.[0-9]+)?|true|false|null))",
-                params_obj
-            )
-            for key, str_val, raw_val in pairs:
-                if str_val != "":
-                    params[key] = str(str_val).strip()
-                elif raw_val != "":
-                    params[key] = str(raw_val).strip()
-                else:
-                    params[key] = ""
-
-    params["h"] = "1"
-    if not params.get("lang"):
-        params["lang"] = "en"
-
-    separator = "&" if "?" in base_url else "?"
-    return f"{base_url}{separator}{urlencode(params)}"
-
-def fetch_vixsrc_streams(tmdb_id, content_type, season, episode):
-    """Fetch stream links from VixSrc by decoding window.masterPlaylist from the embed page."""
-    media_type = "tv" if str(content_type or "").lower() in ("series", "tv") else "movie"
-    if media_type == "tv":
-        if not season or not episode:
-            return []
-        embed_url = f"{VIXSRC_BASE_URL}/tv/{tmdb_id}/{season}/{episode}"
-        title_suffix = f"S{season}E{episode}"
-    else:
-        embed_url = f"{VIXSRC_BASE_URL}/movie/{tmdb_id}"
-        title_suffix = "Movie"
-
-    request_headers = {
-        "User-Agent": VIXSRC_COMMON_HEADERS["User-Agent"],
-        "Referer": VIXSRC_COMMON_HEADERS["Referer"],
-    }
-
-    try:
-        r = requests.get(embed_url, headers=request_headers, timeout=10)
-        r.raise_for_status()
-        playlist_url = _extract_vixsrc_playlist_url(r.text)
-        if not playlist_url:
-            return []
-
-        return [{
-            "name": "VixSrc",
-            "title": f"[VixSrc] {title_suffix}",
-            "url": playlist_url,
-            "behaviorHints": {
-                "notWebReady": True,
-                "proxyHeaders": {
-                    "request": dict(VIXSRC_COMMON_HEADERS)
-                }
-            }
-        }]
-    except Exception as e:
-        app.logger.error(f"Error fetching VixSrc streams for TMDB {tmdb_id}: {e}")
-        return []
-
-def _decode_b64_loose(token):
-    raw = str(token or "").strip()
-    if not raw:
-        return None
-    padded = raw + ("=" * (-len(raw) % 4))
-    for decoder in (base64.b64decode, base64.urlsafe_b64decode):
-        try:
-            return decoder(padded)
-        except Exception:
-            continue
-    return None
-
-def _extract_aniways_proxy_hls_details(proxy_hls):
-    """
-    Aniways proxyHls format:
-    /proxy/<provider>/<base64_json_headers>/<base64_target_url>
-    """
-    raw = str(proxy_hls or "").strip()
-    if not raw:
-        return None, {}
-
-    marker = "/proxy/"
-    idx = raw.find(marker)
-    if idx < 0:
-        return None, {}
-
-    suffix = raw[idx + len(marker):]
-    parts = suffix.split("/", 2)
-    if len(parts) < 3:
-        return None, {}
-
-    headers_token = parts[1].strip().split("?", 1)[0]
-    target_token = parts[2].strip().split("?", 1)[0]
-
-    parsed_headers = {}
-    decoded_headers = _decode_b64_loose(headers_token)
-    if decoded_headers:
-        try:
-            header_payload = json.loads(decoded_headers.decode("utf-8"))
-            if isinstance(header_payload, dict):
-                name_map = {
-                    "referer": "Referer",
-                    "origin": "Origin",
-                    "user-agent": "User-Agent",
-                }
-                for k, v in header_payload.items():
-                    key = str(k or "").strip()
-                    val = str(v or "").strip()
-                    if not key or not val:
-                        continue
-                    parsed_headers[name_map.get(key.lower(), key)] = val
-        except Exception:
-            pass
-
-    parsed_url = None
-    decoded_url = _decode_b64_loose(target_token)
-    if decoded_url:
-        try:
-            candidate = decoded_url.decode("utf-8").strip()
-            if candidate.startswith(("http://", "https://")):
-                parsed_url = candidate
-        except Exception:
-            pass
-
-    return parsed_url, parsed_headers
-
-def fetch_aniways_streams(anime_id, episode_num):
-    """Fetch stream links from Aniways for a specific anime and episode number."""
-    try:
-        episodes_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes"
-        r_ep = requests.get(episodes_url, headers=ANIWAYS_COMMON_HEADERS, timeout=10)
-        if r_ep.status_code != 200:
-            return []
-
-        episodes = r_ep.json()
-        target_ep = None
-        for ep in episodes:
-            if str(ep.get("number")) == str(episode_num):
-                target_ep = ep
-                break
-
-        if not target_ep:
-            return []
-
-        episode_id = target_ep.get("id")
-        if not episode_id:
-            return []
-
-        servers_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/{episode_id}/servers"
-        r_srv = requests.get(servers_url, headers=ANIWAYS_COMMON_HEADERS, timeout=10)
-        if r_srv.status_code != 200:
-            return []
-
-        servers = r_srv.json()
-        streams = []
-        for srv in servers:
-            server_id = srv.get("serverId")
-            server_name = srv.get("serverName")
-            server_type = srv.get("type")
-            if not server_id:
-                continue
-
-            stream_api_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/servers/{server_id}"
-
-            try:
-                server_candidates = []
-                raw_server_name = str(server_name or "").strip()
-                if raw_server_name:
-                    server_candidates.append(raw_server_name)
-                    server_candidates.append(raw_server_name.lower().replace(" ", "-"))
-                    server_candidates.append(raw_server_name.lower())
-                server_candidates = [v for idx, v in enumerate(server_candidates) if v and v not in server_candidates[:idx]]
-
-                type_candidates = []
-                raw_server_type = str(server_type or "").strip()
-                if raw_server_type:
-                    type_candidates.append(raw_server_type)
-                    type_candidates.append(raw_server_type.lower())
-                else:
-                    type_candidates.append("")
-                type_candidates = [v for idx, v in enumerate(type_candidates) if v not in type_candidates[:idx]]
-
-                r_stream = None
-                for server_param in server_candidates or [""]:
-                    for type_param in type_candidates:
-                        params = {"server": server_param, "type": type_param}
-                        resp = requests.get(
-                            stream_api_url,
-                            headers=ANIWAYS_COMMON_HEADERS,
-                            params=params,
-                            timeout=5
-                        )
-                        if resp.status_code == 200:
-                            r_stream = resp
-                            break
-                    if r_stream is not None:
-                        break
-
-                if r_stream is None:
-                    continue
-
-                stream_data = r_stream.json()
-                source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
-                candidate_urls = []
-                proxy_hls_headers = {}
-
-                direct_url = stream_data.get("url")
-                if isinstance(direct_url, str) and direct_url:
-                    candidate_urls.append(direct_url)
-
-                if isinstance(source_obj, dict):
-                    source_hls = source_obj.get("hls") or source_obj.get("url")
-                    if isinstance(source_hls, str) and source_hls:
-                        candidate_urls.append(source_hls)
-
-                    proxy_hls = source_obj.get("proxyHls")
-                    if isinstance(proxy_hls, str) and proxy_hls:
-                        resolved_proxy_url, resolved_proxy_headers = _extract_aniways_proxy_hls_details(proxy_hls)
-                        if resolved_proxy_url:
-                            candidate_urls.append(resolved_proxy_url)
-                            if resolved_proxy_headers:
-                                proxy_hls_headers.update(resolved_proxy_headers)
-                        else:
-                            # Fallback only if we cannot decode proxyHls.
-                            if proxy_hls.startswith("/"):
-                                candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
-                            else:
-                                candidate_urls.append(proxy_hls)
-
-                # Keep order but remove duplicates.
-                unique_urls = []
-                seen_urls = set()
-                for candidate in candidate_urls:
-                    token = str(candidate or "").strip()
-                    if not token or token in seen_urls:
-                        continue
-                    seen_urls.add(token)
-                    unique_urls.append(token)
-                if not unique_urls:
-                    continue
-
-                # Prefer direct upstream media URLs over Aniways API proxy URLs when both exist.
-                preferred_urls = [u for u in unique_urls if not _is_aniways_api_proxy_url(u)]
-                if preferred_urls:
-                    unique_urls = preferred_urls
-
-                # Keep one URL per server entry to avoid cluttered duplicate rows in clients.
-                unique_urls = unique_urls[:1]
-
-                request_headers = dict(ANIWAYS_COMMON_HEADERS)
-                extra_headers = stream_data.get("headers")
-                if isinstance(extra_headers, dict):
-                    for h_key, h_val in extra_headers.items():
-                        key = str(h_key or "").strip()
-                        val = str(h_val or "").strip()
-                        if not key or not val:
-                            continue
-                        request_headers[key] = val
-                if proxy_hls_headers:
-                    request_headers.update(proxy_hls_headers)
-
-                subtitles = []
-                for track in (stream_data.get("tracks") or []):
-                    if not isinstance(track, dict):
-                        continue
-                    sub_url = track.get("url") or track.get("raw")
-                    if not isinstance(sub_url, str) or not sub_url:
-                        continue
-                    if sub_url.startswith("/"):
-                        sub_url = f"https://aniways.xyz{sub_url}"
-                    subtitles.append({
-                        "id": str(track.get("label") or track.get("kind") or "Aniways"),
-                        "lang": str(track.get("label") or "und"),
-                        "url": sub_url,
-                    })
-
-                for stream_url in unique_urls:
-                    variant = str(server_type or "").upper() or "SUB"
-                    stream_title = f"[Aniways] Episode {episode_num} - {server_name or 'Server'} [{variant}]"
-
-                    if not _is_likely_aniways_stream_url(stream_url):
-                        continue
-
-                    stream_obj = {
-                        "name": f"Aniways - {server_name or 'Server'} [{variant}]",
-                        "title": stream_title,
-                        "url": stream_url,
-                        "behaviorHints": {
-                            "notWebReady": True,
-                            "proxyHeaders": {
-                                "request": request_headers
-                            }
-                        }
-                    }
-                    if subtitles:
-                        stream_obj["subtitles"] = subtitles
-                    streams.append(stream_obj)
-            except Exception:
-                continue
-
-        return streams
-    except Exception:
-        return []
-
-def _is_likely_aniways_stream_url(url):
-    """Filter obviously invalid Aniways candidates without probing upstream."""
-    u = str(url or "").strip().lower()
-    if not u.startswith(("http://", "https://")):
-        return False
-    if any(x in u for x in ("javascript:", "data:", "about:blank")):
-        return False
-    # Keep the working HLS patterns seen in Aniways responses.
-    if ".m3u8" in u or "/hls-playback/" in u or "/proxy/" in u:
-        return True
-    return False
-
-def _is_aniways_api_proxy_url(url):
-    u = str(url or "").strip().lower()
-    return u.startswith("https://api.aniways.xyz/proxy/") or u.startswith("http://api.aniways.xyz/proxy/")
-
-def _normalize_title_for_match(value):
-    if not value:
-        return ""
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
-
-@lru_cache(maxsize=1024)
-def get_kitsu_anime_context(kitsu_id):
-    """Fetch Kitsu anime metadata and cross-site mappings for Aniways resolution."""
-    titles = []
-    mal_id = None
-    anilist_id = None
-
-    try:
-        anime_url = f"{KITSU_API_BASE}/anime/{kitsu_id}"
-        r_anime = requests.get(anime_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10)
-        if r_anime.status_code == 200:
-            payload = r_anime.json()
-            data = payload.get("data") if isinstance(payload, dict) else None
-            attrs = data.get("attributes") if isinstance(data, dict) else None
-            if isinstance(attrs, dict):
-                canonical = attrs.get("canonicalTitle")
-                if canonical:
-                    titles.append(canonical)
-                title_map = attrs.get("titles")
-                if isinstance(title_map, dict):
-                    for val in title_map.values():
-                        if val:
-                            titles.append(val)
-                abbreviated = attrs.get("abbreviatedTitles")
-                if isinstance(abbreviated, list):
-                    for val in abbreviated:
-                        if val:
-                            titles.append(val)
-    except Exception:
-        pass
-
-    try:
-        mappings_url = f"{KITSU_API_BASE}/anime/{kitsu_id}/mappings"
-        r_map = requests.get(mappings_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10)
-        if r_map.status_code == 200:
-            payload = r_map.json()
-            data = payload.get("data") if isinstance(payload, dict) else []
-            if isinstance(data, list):
-                for mapping in data:
-                    attrs = mapping.get("attributes") if isinstance(mapping, dict) else None
-                    if not isinstance(attrs, dict):
-                        continue
-                    site = str(attrs.get("externalSite") or "").lower()
-                    ext_raw = attrs.get("externalId")
-                    try:
-                        ext_id = int(ext_raw)
-                    except Exception:
-                        continue
-
-                    if site == "myanimelist/anime" and mal_id is None:
-                        mal_id = ext_id
-                    elif site == "anilist/anime" and anilist_id is None:
-                        anilist_id = ext_id
-    except Exception:
-        pass
-
-    unique_titles = []
-    seen = set()
-    for title in titles:
-        token = str(title).strip()
-        if len(token) < 3:
-            continue
-        if token.lower() in seen:
-            continue
-        seen.add(token.lower())
-        unique_titles.append(token)
-
-    return {
-        "titles": unique_titles,
-        "mal_id": mal_id,
-        "anilist_id": anilist_id,
-    }
-
-def _fetch_aniways_search_page(query, page=1, items_per_page=20):
-    params = {
-        "q": query,
-        "page": page,
-        "itemsPerPage": items_per_page,
-    }
-    try:
-        r = requests.get(
-            f"{ANIWAYS_API_BASE}/anime/listings/search",
-            headers=ANIWAYS_COMMON_HEADERS,
-            params=params,
-            timeout=10
-        )
-        if r.status_code != 200:
-            return []
-        payload = r.json()
-        items = payload.get("items") if isinstance(payload, dict) else []
-        return items if isinstance(items, list) else []
-    except Exception:
-        return []
-
-@lru_cache(maxsize=1024)
-def resolve_aniways_id_from_kitsu(kitsu_id):
-    """Resolve Aniways anime id from a Kitsu anime id using mappings + title search."""
-    ctx = get_kitsu_anime_context(kitsu_id)
-    titles = ctx.get("titles") or []
-    mal_id = ctx.get("mal_id")
-    anilist_id = ctx.get("anilist_id")
-    if not titles:
-        return None
-
-    # First pass: exact external-id match (most reliable)
-    for title in titles[:6]:
-        items = _fetch_aniways_search_page(title, page=1, items_per_page=20)
-        for item in items:
-            item_mal = item.get("malId")
-            item_anilist = item.get("anilistId")
-            if mal_id is not None and item_mal == mal_id:
-                return item.get("id")
-            if anilist_id is not None and item_anilist == anilist_id:
-                return item.get("id")
-
-    # Second pass: title similarity fallback.
-    normalized_titles = {_normalize_title_for_match(t) for t in titles if t}
-    for title in titles[:4]:
-        items = _fetch_aniways_search_page(title, page=1, items_per_page=20)
-        for item in items:
-            names = [
-                item.get("ename"),
-                item.get("jname"),
-            ]
-            for name in names:
-                if _normalize_title_for_match(name) in normalized_titles:
-                    return item.get("id")
-
-    return None
-
-@app.route('/')
-@app.route('/configure')
+            return None, None, None
+        season = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+        episode = _normalize_episode_part(parts[3] if len(parts) > 3 else None)
+        return content_id, season, episode
+
+    imdb_id = parts[0]
+    season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
+    episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+    if not imdb_id.startswith("tt"):
+        return None, season, episode
+
+    content_id = get_tmdb_id(imdb_id, kind)
+    return content_id, season, episode
+
+
+@app.route("/")
+@app.route("/configure")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/manifest.json')
+
+@app.route("/manifest.json")
 def manifest():
     manifest_data = dict(MANIFEST)
     logo = manifest_data.get("logo")
@@ -1014,11 +112,12 @@ def manifest():
         manifest_data["logo"] = f"{base}{logo}"
     return jsonify(manifest_data)
 
-@app.route('/stream/<type>/<path:id>.json')
+
+@app.route("/stream/<type>/<path:id>.json")
 def stream(type, id):
-    # Stremio format: tt1234567[:season:episode] (may be URL-encoded)
+    # Stremio format: tt1234567[:season:episode] (may be URL-encoded).
     decoded_id = _decode_stream_id(id)
-    parts = [p for p in decoded_id.split(':') if p]
+    parts = [p for p in decoded_id.split(":") if p]
     imdb_id = parts[0] if parts else ""
     kind = (type or "").lower()
     season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
@@ -1044,11 +143,13 @@ def stream(type, id):
 
         aniways_streams = fetch_aniways_streams(anime_id, aniways_episode)
         aniways_streams.sort(key=lambda s: (str(s.get("name", "")), str(s.get("title", ""))))
-        aniways_streams.append({
-            "name": "Flix-Streams",
-            "title": "Support development on Ko-fi",
-            "externalUrl": "https://ko-fi.com/sandortoth",
-        })
+        aniways_streams.append(
+            {
+                "name": "Flix-Streams",
+                "title": "Support development on Ko-fi",
+                "externalUrl": "https://ko-fi.com/sandortoth",
+            }
+        )
         return jsonify({"streams": aniways_streams})
 
     if not imdb_id.startswith("tt"):
@@ -1071,54 +172,45 @@ def stream(type, id):
     all_streams = []
     decryption_key = get_decryption_key()
     if decryption_key:
-        # VidZee provider
+        # VidZee provider.
         with ThreadPoolExecutor(max_workers=10) as executor:
             results = executor.map(
                 lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
-                SERVERS
+                SERVERS,
             )
             for res in results:
                 all_streams.extend(res)
     else:
         app.logger.warning("VidZee decryption key unavailable; skipping VidZee provider")
 
-    # AutoEmbed provider
+    # AutoEmbed provider.
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = executor.map(
             lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode),
-            AUTOEMBED_SERVERS
+            AUTOEMBED_SERVERS,
         )
         for res in results:
             all_streams.extend(res)
 
-    # VixSrc provider
+    # VixSrc provider.
     all_streams.extend(fetch_vixsrc_streams(tmdb_id, kind, season, episode))
 
     # Keep provider groups stable in the list.
-    def _provider_rank(stream_obj):
-        name = str(stream_obj.get("name", "")).lower()
-        if name.startswith("vidzee"):
-            return 0
-        if name.startswith("autoembed"):
-            return 1
-        if name.startswith("vixsrc"):
-            return 2
-        if name.startswith("aniways"):
-            return 3
-        return 4
-
-    all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
+    all_streams.sort(key=lambda s: (provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
     # Keep a clickable support link as the final item in the stream list.
-    all_streams.append({
-        "name": "Flix-Streams",
-        "title": "Support development on Ko-fi",
-        "externalUrl": "https://ko-fi.com/sandortoth",
-    })
+    all_streams.append(
+        {
+            "name": "Flix-Streams",
+            "title": "Support development on Ko-fi",
+            "externalUrl": "https://ko-fi.com/sandortoth",
+        }
+    )
 
     return jsonify({"streams": all_streams})
 
-if __name__ == '__main__':
-    # Use environment variable for port, default to 7000
+
+if __name__ == "__main__":
+    # Use environment variable for port, default to 7000.
     port = int(os.environ.get("PORT", 7000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
