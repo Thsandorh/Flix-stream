@@ -31,7 +31,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.27",
+    "version": "1.0.28",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee, AutoEmbed, and Cineby.",
     "logo": "/static/icon.png",
@@ -214,6 +214,40 @@ def get_tmdb_id(imdb_id, content_type=None):
             return tv_season_show_id
     except Exception as e:
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
+
+    # Fallback: Cinemeta often still exposes moviedb_id when TMDB /find misses.
+    fallback_tmdb_id = get_tmdb_id_from_cinemeta(imdb_id, kind)
+    if fallback_tmdb_id:
+        return fallback_tmdb_id
+
+    return None
+
+@lru_cache(maxsize=2048)
+def get_tmdb_id_from_cinemeta(imdb_id, content_type=None):
+    """Fallback IMDb->TMDB mapping via Cinemeta meta endpoint."""
+    kind = (content_type or "").lower()
+    if kind in ("series", "tv"):
+        meta_types = ["series"]
+    elif kind == "movie":
+        meta_types = ["movie"]
+    else:
+        meta_types = ["movie", "series"]
+
+    headers = {"User-Agent": COMMON_HEADERS["User-Agent"]}
+    for meta_type in meta_types:
+        url = f"https://v3-cinemeta.strem.io/meta/{meta_type}/{imdb_id}.json"
+        try:
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            meta = data.get("meta") if isinstance(data, dict) else None
+            moviedb_id = meta.get("moviedb_id") if isinstance(meta, dict) else None
+            if moviedb_id is None:
+                continue
+            return int(moviedb_id)
+        except Exception:
+            continue
 
     return None
 
