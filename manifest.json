@@ -11,7 +11,13 @@
         {
             "type": "series",
             "id": "stmify-live",
-            "name": "Stmify Live TV"
+            "name": "Stmify Live TV",
+            "extra": [
+                {
+                    "name": "skip",
+                    "isRequired": false
+                }
+            ]
         }
     ]
 }

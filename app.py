@@ -34,7 +34,12 @@ from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 app = Flask(__name__)
 
-STMIFY_CATALOG = {"type": "series", "id": "stmify-live", "name": "Stmify Live TV"}
+STMIFY_CATALOG = {
+    "type": "series",
+    "id": "stmify-live",
+    "name": "Stmify Live TV",
+    "extra": [{"name": "skip", "isRequired": False}],
+}
 
 
 def _support_stream():

@@ -280,6 +280,8 @@
             return cfg;
         }
 
+        const DEFAULT_NORMALIZED_CONFIG = normalizeConfig(DEFAULT_CONFIG);
+
         function getSelectedWyzieLanguages() {
             const picker = document.getElementById("wyzie_language_picker");
             return Array.from(picker.selectedOptions).map((opt) => opt.value);
@@ -348,7 +350,11 @@
         }
 
         function getManifestUrl(config = getConfigFromForm()) {
-            const token = toBase64Url(JSON.stringify(normalizeConfig(config)));
+            const normalized = normalizeConfig(config);
+            if (JSON.stringify(normalized) === JSON.stringify(DEFAULT_NORMALIZED_CONFIG)) {
+                return `${BASE_URL}/manifest.json`;
+            }
+            const token = toBase64Url(JSON.stringify(normalized));
             return `${BASE_URL}/${token}/manifest.json`;
         }
 
