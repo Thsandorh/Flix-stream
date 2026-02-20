@@ -1,11 +1,11 @@
 {
     "id": "org.flickystream.addon",
-    "version": "1.0.29",
+    "version": "1.0.30",
     "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee, AutoEmbed, and Cineby.",
+    "description": "Stream movies and series from VidZee, AutoEmbed, and Aniways.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt"],
+    "idPrefixes": ["tt", "aniways"],
     "catalogs": []
 }

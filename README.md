@@ -10,14 +10,15 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
 - Fetches streams from:
   - VidZee (`player.vidzee.wtf`)
   - AutoEmbed (`test.autoembed.cc`)
-  - Cineby / Videasy (`api.videasy.net`)
+  - Aniways (`api.aniways.xyz`)
 - Returns subtitles when available.
 
 ## Current ID Behavior
 
-- Manifest `idPrefixes`: `["tt"]`
+- Manifest `idPrefixes`: `["tt", "aniways"]`
 - Movie input: `tt1234567`
 - Series input: `tt1234567:season:episode`
+- Aniways direct input: `aniways:<anime_id>:<episode>` (or `aniways:<anime_id>:<season>:<episode>`)
 - Series fallback:
   - If season/episode is missing, it attempts to resolve episode context from TMDB `find` results.
 
@@ -41,5 +42,4 @@ Default port is `7000` (can be changed with `PORT` env var).
 
 - Upstream providers can change behavior at any time.
 - Some HLS links require proxy headers; the addon sets Stremio `behaviorHints` where needed.
-- Cineby decryption requires `module.wasm` and the `wasmtime` dependency.
 - After any manifest/version change, remove and reinstall the addon in Stremio to refresh cache.
