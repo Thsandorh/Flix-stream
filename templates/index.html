@@ -5,68 +5,145 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flix-Streams</title>
     <style>
+        :root {
+            --bg-a: #081019;
+            --bg-b: #121a2a;
+            --panel: #121827;
+            --panel-2: #0f1523;
+            --text: #f4f7ff;
+            --muted: #b7c2d9;
+            --line: #22304a;
+            --primary: #2ec5a7;
+            --primary-hover: #28b095;
+            --secondary: #2b7fff;
+            --secondary-hover: #226fe1;
+        }
         body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #121212;
-            color: white;
             margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1000px 600px at 15% -10%, #1b3a5f33, transparent 70%),
+                radial-gradient(900px 500px at 100% 0%, #2ec5a71f, transparent 72%),
+                linear-gradient(165deg, var(--bg-a), var(--bg-b));
         }
-        h1 { margin-bottom: 20px; }
-        p { margin-bottom: 30px; color: #ccc; }
+        .page {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 48px 18px 28px;
+        }
+        .hero {
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin: 0 0 10px;
+            font-size: 40px;
+            letter-spacing: 0.2px;
+        }
+        p {
+            margin: 0;
+            color: var(--muted);
+        }
         .meta {
-            max-width: 760px;
-            text-align: left;
-            margin: 0 20px 24px;
-            background: #1c1c1c;
-            border: 1px solid #2a2a2a;
-            border-radius: 8px;
-            padding: 14px 16px;
-            color: #ddd;
+            margin: 18px 0 22px;
+            background: linear-gradient(180deg, var(--panel), var(--panel-2));
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px 18px;
+            color: var(--muted);
             font-size: 14px;
-            line-height: 1.45;
+            line-height: 1.5;
         }
-        .meta b { color: #fff; }
+        .meta b { color: var(--text); }
         .meta code {
-            background: #2a2a2a;
-            border-radius: 4px;
+            background: #18223a;
+            border: 1px solid #2a3b60;
+            border-radius: 6px;
             padding: 2px 5px;
-            color: #fff;
+            color: #d4e0ff;
         }
         .button-container {
             display: flex;
-            gap: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
         }
         button {
-            padding: 15px 30px;
-            font-size: 16px;
+            padding: 13px 20px;
+            font-size: 15px;
             cursor: pointer;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             font-weight: bold;
             transition: transform 0.2s, background-color 0.2s;
         }
         button:hover {
-            transform: scale(1.05);
+            transform: translateY(-1px);
         }
         .install-btn {
-            background-color: #8A5AAB; /* Stremio Purple */
+            background-color: var(--primary);
             color: white;
         }
         .install-btn:hover {
-            background-color: #9d6ec3;
+            background-color: var(--primary-hover);
         }
         .copy-btn {
-            background-color: #333;
+            background-color: #18233a;
             color: white;
-            border: 1px solid #555;
+            border: 1px solid #31486f;
         }
         .copy-btn:hover {
-            background-color: #444;
+            background-color: #203050;
+        }
+        .community {
+            background: linear-gradient(180deg, #121a2a, #0e1523);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        .community h2 {
+            margin: 0 0 8px;
+            font-size: 22px;
+        }
+        .community p {
+            margin: 0 0 14px;
+            line-height: 1.45;
+        }
+        .social-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+        .social-card {
+            display: block;
+            text-decoration: none;
+            border-radius: 12px;
+            border: 1px solid #2b3d60;
+            padding: 12px 14px;
+            color: var(--text);
+            background: #131d30;
+            transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+        }
+        .social-card strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .social-card span {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .social-card:hover {
+            transform: translateY(-2px);
+            border-color: #4b6ea8;
+            background: #16233b;
+        }
+        .social-card.discord {
+            border-color: #3c4f7f;
+        }
+        .social-card.kofi {
+            border-color: #41635f;
         }
         .toast {
             visibility: hidden;
@@ -102,23 +179,47 @@
             from {bottom: 30px; opacity: 1;}
             to {bottom: 0; opacity: 0;}
         }
+        @media (max-width: 620px) {
+            .page { padding-top: 30px; }
+            h1 { font-size: 34px; }
+            .community h2 { font-size: 20px; }
+        }
     </style>
 </head>
 <body>
-    <h1>Flix-Streams</h1>
-    <p id="subtitle">Stream movies and TV shows from multiple providers.</p>
+    <div class="page">
+        <div class="hero">
+            <h1>Flix-Streams</h1>
+            <p id="subtitle">Stream movies and TV shows from multiple providers.</p>
+        </div>
 
-    <div class="meta" id="meta-box">
-        <div><b>Providers:</b> VidZee + AutoEmbed</div>
-        <div><b>Supported types:</b> movie, series</div>
-        <div><b>ID format:</b> <code>tt...</code> and <code>tt...:season:episode</code> for series</div>
-        <div><b>Version:</b> <span id="addon-version">loading...</span></div>
-        <div><b>Note:</b> after updates, remove + reinstall addon in Stremio to refresh manifest cache.</div>
-    </div>
+        <div class="meta" id="meta-box">
+            <div><b>Providers:</b> VidZee + AutoEmbed</div>
+            <div><b>Supported types:</b> movie, series</div>
+            <div><b>ID format:</b> <code>tt...</code> and <code>tt...:season:episode</code> for series</div>
+            <div><b>Version:</b> <span id="addon-version">loading...</span></div>
+            <div><b>Note:</b> after updates, remove + reinstall addon in Stremio to refresh manifest cache.</div>
+        </div>
 
-    <div class="button-container">
-        <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
-        <button id="copy-btn" class="copy-btn" onclick="copyManifest()">Copy Manifest URL</button>
+        <div class="button-container">
+            <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
+            <button id="copy-btn" class="copy-btn" onclick="copyManifest()">Copy Manifest URL</button>
+        </div>
+
+        <section class="community">
+            <h2>Community and Support</h2>
+            <p>Need help with setup, playback issues, or updates? Join the Discord community. If this addon helps you, you can support ongoing development on Ko-fi.</p>
+            <div class="social-grid">
+                <a class="social-card discord" href="https://discord.gg/AcgxK7f9" target="_blank" rel="noopener noreferrer">
+                    <strong>Join Discord</strong>
+                    <span>Support chat, status updates, and troubleshooting</span>
+                </a>
+                <a class="social-card kofi" href="https://ko-fi.com/sandortoth" target="_blank" rel="noopener noreferrer">
+                    <strong>Support on Ko-fi</strong>
+                    <span>Help fund maintenance and future improvements</span>
+                </a>
+            </div>
+        </section>
     </div>
 
     <div id="toast" class="toast">Manifest URL copied to clipboard!</div>

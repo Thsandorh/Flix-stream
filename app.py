@@ -7,7 +7,7 @@ import time
 import requests
 from urllib.parse import unquote
 from functools import lru_cache
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
@@ -30,10 +30,10 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.23",
+    "version": "1.0.24",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee and AutoEmbed.",
-    "logo": "/static/icon.svg",
+    "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
@@ -441,7 +441,12 @@ def index():
 
 @app.route('/manifest.json')
 def manifest():
-    return jsonify(MANIFEST)
+    manifest_data = dict(MANIFEST)
+    logo = manifest_data.get("logo")
+    if isinstance(logo, str) and logo.startswith("/"):
+        base = request.url_root.rstrip("/")
+        manifest_data["logo"] = f"{base}{logo}"
+    return jsonify(manifest_data)
 
 @app.route('/stream/<type>/<path:id>.json')
 def stream(type, id):
@@ -503,6 +508,13 @@ def stream(type, id):
         return 2
 
     all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
+
+    # Keep a clickable support link as the final item in the stream list.
+    all_streams.append({
+        "name": "Flix-Streams",
+        "title": "Support development on Ko-fi",
+        "externalUrl": "https://ko-fi.com/sandortoth",
+    })
 
     return jsonify({"streams": all_streams})
 
