@@ -24,6 +24,7 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
 - Also supports `tmdb:<id>` IDs.
 - Stmify input: `stmify:<channel_slug>` (for example `stmify:tv1`)
 - Stmify catalog items include addon `meta` data so channel pages can render and play directly in Stremio.
+- Current static Live TV catalog size: `295` channels.
 - Movie input: `tt1234567`
 - Series input: `tt1234567:season:episode`
 - Aniways direct input: `aniways:<anime_id>:<episode>` (or `aniways:<anime_id>:<season>:<episode>`)

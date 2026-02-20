@@ -27,7 +27,7 @@ from flix_stream.runtime_config import (
     encode_addon_config,
     normalize_addon_config,
 )
-from flix_stream.stmify import get_stmify_catalog, get_stmify_meta, get_stmify_stream
+from flix_stream.stmify import get_stmify_catalog, get_stmify_meta, get_stmify_stream, load_channels
 from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
 from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
@@ -292,6 +292,7 @@ def _render_config_page(config_token=None):
         initial_config=normalized_config,
         config_token=canonical_token,
         base_url=request.url_root.rstrip("/"),
+        stmify_channel_count=len(load_channels()),
     )
 
 
