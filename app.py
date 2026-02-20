@@ -178,7 +178,7 @@ def decrypt_link(encrypted_link, key_str):
 
 def extract_headers_from_proxy(proxy_url):
     """
-    Extract Referer and Origin headers from an Aniways proxyHls URL.
+    Extract Referer, Origin and optional User-Agent headers from an Aniways proxyHls URL.
     Typical format: /proxy/hd/{base64_headers}/{base64_url}
     """
     try:
@@ -193,12 +193,18 @@ def extract_headers_from_proxy(proxy_url):
 
             decoded_bytes = base64.b64decode(part)
             headers_json = json.loads(decoded_bytes)
+            if not isinstance(headers_json, dict):
+                continue
 
+            normalized = {str(k).lower(): v for k, v in headers_json.items()}
             headers = {}
-            if "referer" in headers_json:
-                headers["Referer"] = headers_json["referer"]
-            if "origin" in headers_json:
-                headers["Origin"] = headers_json["origin"]
+            if isinstance(normalized.get("referer"), str) and normalized.get("referer"):
+                headers["Referer"] = normalized["referer"]
+            if isinstance(normalized.get("origin"), str) and normalized.get("origin"):
+                headers["Origin"] = normalized["origin"]
+            ua = normalized.get("user-agent") or normalized.get("user_agent")
+            if isinstance(ua, str) and ua:
+                headers["User-Agent"] = ua
             return headers
     except Exception as e:
         app.logger.error(f"Error parsing proxy headers: {e}")
@@ -622,8 +628,11 @@ def fetch_aniways_streams(anime_id, episode_num):
                         continue
 
                     stream_request_headers = dict(request_headers)
-                    if _is_megaplay_url(stream_url):
-                        stream_request_headers["User-Agent"] = COMMON_HEADERS["User-Agent"]
+                    if _is_megaplay_url(stream_url) or _is_aniways_proxy_hd_url(stream_url):
+                        stream_request_headers["User-Agent"] = (
+                            proxy_headers_from_hls.get("User-Agent")
+                            or COMMON_HEADERS["User-Agent"]
+                        )
                         if proxy_headers_from_hls.get("Referer"):
                             stream_request_headers["Referer"] = proxy_headers_from_hls["Referer"]
                         if proxy_headers_from_hls.get("Origin"):
@@ -643,6 +652,22 @@ def fetch_aniways_streams(anime_id, episode_num):
                     if subtitles:
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
+
+                    # Some Aniways upstreams intermittently fail when custom proxy headers are
+                    # attached by clients. Add a fallback variant without proxyHeaders so the
+                    # player can try direct playback policy for problematic MegaPlay/HD hosts.
+                    if _is_megaplay_url(stream_url) or _is_aniways_proxy_hd_url(stream_url):
+                        fallback_obj = {
+                            "name": f"Aniways - {server_name or 'Server'}",
+                            "title": f"{stream_title} (Fallback)",
+                            "url": stream_url,
+                            "behaviorHints": {
+                                "notWebReady": True,
+                            },
+                        }
+                        if subtitles:
+                            fallback_obj["subtitles"] = subtitles
+                        streams.append(fallback_obj)
             except Exception:
                 continue
 
@@ -661,6 +686,15 @@ def _is_megaplay_url(url):
 
     return host == "megaplay.link" or host.endswith(".megaplay.link")
 
+def _is_aniways_proxy_hd_url(url):
+    """Return True when URL points to Aniways proxy/hd endpoint."""
+    try:
+        parsed = urlparse(str(url or ""))
+    except Exception:
+        return False
+
+    return parsed.path.startswith("/proxy/hd/")
+
 def _is_likely_aniways_stream_url(url):
     """Filter obviously invalid Aniways candidates without probing upstream."""
     u = str(url or "").strip().lower()
@@ -668,8 +702,8 @@ def _is_likely_aniways_stream_url(url):
         return False
     if any(x in u for x in ("javascript:", "data:", "about:blank")):
         return False
-    # Keep the working HLS patterns seen in Aniways responses.
-    if ".m3u8" in u or "/hls-playback/" in u:
+    # Keep the working HLS/proxy patterns seen in Aniways responses.
+    if ".m3u8" in u or "/hls-playback/" in u or "/proxy/hd/" in u:
         return True
     return False
 
