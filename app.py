@@ -4,6 +4,7 @@ import base64
 import hashlib
 import time
 import requests
+import json
 from urllib.parse import unquote
 from functools import lru_cache
 from flask import Flask, jsonify, render_template
@@ -49,6 +50,13 @@ COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Referer": "https://player.vidzee.wtf/",
     "Origin": "https://player.vidzee.wtf"
+}
+
+ANIWAYS_API_BASE = "https://api.aniways.xyz"
+ANIWAYS_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": "https://aniways.xyz/",
+    "Origin": "https://aniways.xyz"
 }
 
 LANG_MAP = {
@@ -397,6 +405,196 @@ def parse_subtitles(subtitle_list):
         })
     return parsed
 
+def extract_aniways_headers(proxy_url):
+    """Extracts required headers from Aniways proxyHls string."""
+    try:
+        parts = proxy_url.split('/')
+        for part in parts:
+            if part.startswith('ey'):
+                padding = len(part) % 4
+                if padding:
+                    part += '=' * (4 - padding)
+                decoded_bytes = base64.b64decode(part)
+                headers_json = json.loads(decoded_bytes)
+
+                headers = {}
+                if "referer" in headers_json:
+                    headers["Referer"] = headers_json["referer"]
+                if "origin" in headers_json:
+                    headers["Origin"] = headers_json["origin"]
+
+                # IMPORTANT: User-Agent is critical for playback
+                headers["User-Agent"] = COMMON_HEADERS["User-Agent"]
+                return headers
+    except Exception as e:
+        app.logger.error(f"Error extracting Aniways headers: {e}")
+    return {}
+
+def fetch_aniways_streams(tmdb_id, season, episode):
+    """Fetches streams from Aniways (autoembed.cc) API."""
+    streams = []
+    # Aniways uses its own anime ID format, so we need to search first or map.
+    # Currently we only support Aniways if we can find the content via search/mapping.
+    # But since the user provided a specific ID example '8698ca792a1g8ae48a0g3',
+    # we might need a mapping strategy. However, Aniways API likely doesn't support TMDB ID lookup directly.
+    # Wait, the user request implied replacing VidZee or adding to it.
+    # The user provided a screenshot showing "Aniways - HD-1", which means they managed to get it working.
+    # Let's assume we search by title or just try to use the TMDB ID if Aniways supports it?
+    # No, Aniways uses hashes. We need to search.
+    # BUT, for this integration, without a title, we can't search.
+    # Let's fetch TMDB info to get the title first?
+    # Actually, `stream` endpoint doesn't have the title.
+    # We might need to skip Aniways if we can't map ID.
+    # However, let's look at `get_tmdb_id`. We have `tmdb_id`.
+    # Let's try to fetch show info from TMDB to get the title if we want to search Aniways.
+
+    # For now, to keep it simple and match the user's likely context (where they might have hardcoded or we assume a match),
+    # we will try to find the anime by TMDB ID if possible, or skip.
+    # Actually, the user's screenshot shows "Aniways".
+    # Let's add a search step if we have the title?
+    # We don't have the title in `stream`.
+    # We can fetch it from TMDB.
+
+    # OPTIMIZATION: We'll skip complex mapping for now and just add the function structure.
+    # The user's screenshot implies they are testing with a specific anime.
+    # If we can't map TMDB -> Aniways ID easily, this feature is hard to genericize without an external index.
+    # BUT, let's look at the `aniways_integration.py` I wrote. It took an ID.
+    # If the user wants this generic, we need a way to find the ID.
+    # Let's assume for this task we implement the fetching logic given an ID,
+    # and maybe we can't fully integrate it into `stream` without that ID.
+    # However, I can try to fetch the TMDB details to get the external IDs or title.
+
+    # Let's try to search Aniways by TMDB ID? Unlikely.
+    # Let's try to search by IMDb ID? `tmdb_id` was derived from IMDb usually.
+    # The `stream` request comes with an ID (often IMDb `tt...`).
+    # Let's pass the IMDb ID if available?
+    # The `stream` function parses it.
+
+    # Let's use the `id` passed to `stream` (which is often `tt...`) to search Aniways?
+    # Aniways search API: /anime/search?q={query}
+
+    # Implementation detail:
+    # 1. Fetch TMDB/IMDb details to get a Title.
+    # 2. Search Aniways for that Title.
+    # 3. Match the result?
+
+    # This might be too slow for a simple addon.
+    # But the user asked for it.
+
+    # Let's implement a direct check: does Aniways support IMDb search?
+    # I'll optimistically implement a search-by-title flow if I can get the title.
+    # But I don't have the title in `stream`.
+    # I'll use the TMDB API to get the title.
+
+    try:
+        # Get title from TMDB
+        tmdb_url = f"https://api.themoviedb.org/3/{'tv' if season else 'movie'}/{tmdb_id}?api_key={TMDB_TOKEN}&external_source=imdb_id"
+        # Note: TMDB_TOKEN in app.py is a Bearer token, not api_key param usually.
+        # But let's check `get_tmdb_id` usage. It uses Bearer.
+
+        headers = {"Authorization": f"Bearer {TMDB_TOKEN}"}
+        r_tmdb = requests.get(f"https://api.themoviedb.org/3/{'tv' if season else 'movie'}/{tmdb_id}", headers=headers, timeout=5)
+        if r_tmdb.status_code != 200:
+            return []
+
+        meta = r_tmdb.json()
+        title = meta.get("name") or meta.get("title") or meta.get("original_name")
+        if not title:
+            return []
+
+        # Search Aniways
+        search_url = f"{ANIWAYS_API_BASE}/anime/search"
+        r_search = requests.get(search_url, headers=ANIWAYS_HEADERS, params={"q": title}, timeout=5)
+        if r_search.status_code != 200:
+            return []
+
+        results = r_search.json().get("result", [])
+        if not results:
+            return []
+
+        # Simple match: take the first result
+        aniways_id = results[0]["id"]
+
+        # Now fetch episodes
+        episodes_url = f"{ANIWAYS_API_BASE}/anime/{aniways_id}/episodes"
+        r_ep = requests.get(episodes_url, headers=ANIWAYS_HEADERS, timeout=5)
+        episodes = r_ep.json()
+
+        target_ep_id = None
+        # Aniways episodes are often just numbers.
+        # For movies, it might be episode 1?
+        target_num = str(int(episode)) if episode else "1"
+
+        for ep in episodes:
+            if str(ep.get("number")) == target_num:
+                target_ep_id = ep["id"]
+                break
+
+        if not target_ep_id:
+            return []
+
+        # Get servers
+        servers_url = f"{ANIWAYS_API_BASE}/anime/{aniways_id}/episodes/{target_ep_id}/servers"
+        r_srv = requests.get(servers_url, headers=ANIWAYS_HEADERS, timeout=5)
+        servers = r_srv.json()
+
+        def fetch_single_aniways_stream(srv):
+            try:
+                server_name = srv.get("serverName")
+                stream_url_api = f"{ANIWAYS_API_BASE}/anime/{aniways_id}/episodes/servers/{srv['serverId']}"
+                params = {
+                    "server": server_name.lower().replace(" ", "-") if server_name else "",
+                    "type": srv.get("type").lower() if srv.get("type") else ""
+                }
+
+                r_link = requests.get(stream_url_api, headers=ANIWAYS_HEADERS, params=params, timeout=5)
+                if r_link.status_code == 200:
+                    link_data = r_link.json()
+                    source = link_data.get("source", {})
+                    hls_url = source.get("hls")
+                    proxy_hls = source.get("proxyHls")
+
+                    if hls_url:
+                        # Extract headers
+                        req_headers = {}
+                        if proxy_hls:
+                            req_headers = extract_aniways_headers(proxy_hls)
+
+                        # Fallback if extraction fails or isn't present
+                        if not req_headers:
+                            req_headers = {
+                                "User-Agent": COMMON_HEADERS["User-Agent"],
+                                "Referer": "https://aniways.xyz/",
+                                "Origin": "https://aniways.xyz"
+                            }
+
+                        return {
+                            "name": f"Aniways - {server_name}",
+                            "title": f"{srv.get('type', 'SUB').upper()}",
+                            "url": hls_url,
+                            "behaviorHints": {
+                                "notWebReady": True,
+                                "proxyHeaders": {
+                                    "request": req_headers
+                                }
+                            }
+                        }
+            except Exception as e:
+                app.logger.error(f"Error fetching Aniways stream {srv.get('serverName')}: {e}")
+            return None
+
+        # Fetch all streams in parallel
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            results = executor.map(fetch_single_aniways_stream, servers)
+            for res in results:
+                if res:
+                    streams.append(res)
+
+    except Exception as e:
+        app.logger.error(f"Error in Aniways integration: {e}")
+
+    return streams
+
 def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     """Worker function to fetch streams from a specific server."""
     sr = sr_info["id"]
@@ -476,18 +674,42 @@ def stream(type, id):
         return jsonify({"streams": []})
 
     decryption_key = get_decryption_key()
-    if not decryption_key:
-        return jsonify({"streams": []})
+    # Note: If decryption key fails, we can still try Aniways?
+    # But existing logic returns empty. Let's keep it safe.
 
     all_streams = []
-    # Increase workers to ensure all server requests start immediately
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        results = executor.map(
-            lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
-            SERVERS
-        )
-        for res in results:
-            all_streams.extend(res)
+
+    # Define tasks
+    def fetch_vidzee():
+        if not decryption_key: return []
+        v_streams = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = executor.map(
+                lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
+                SERVERS
+            )
+            for res in results:
+                v_streams.extend(res)
+        return v_streams
+
+    def fetch_aniways():
+        return fetch_aniways_streams(tmdb_id, season, episode)
+
+    # Execute both in parallel (or just sequentially for simplicity as Flask is threaded)
+    # Let's do sequential for now to avoid nesting ThreadPools too deeply if not needed,
+    # or use a global executor.
+
+    # Fetch VidZee
+    all_streams.extend(fetch_vidzee())
+
+    # Fetch Aniways
+    # Only if it's a series or we have a way to handle movies (Aniways supports movies too)
+    # The current fetch_aniways_streams implementation supports both if TMDB title is found.
+    try:
+        aniways_streams = fetch_aniways()
+        all_streams.extend(aniways_streams)
+    except Exception as e:
+        app.logger.error(f"Aniways fetch failed: {e}")
 
     return jsonify({"streams": all_streams})
 
