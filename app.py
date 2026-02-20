@@ -29,7 +29,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -163,23 +163,8 @@ def decrypt_link(encrypted_link, key_str):
         return None
 
 @lru_cache(maxsize=2048)
-def _tmdb_external_imdb(kind, tmdb_id):
-    """Fetch IMDb id from TMDB external_ids endpoint for strict mapping validation."""
-    tmdb_kind = "tv" if kind in ("series", "tv") else "movie"
-    url = f"https://api.themoviedb.org/3/{tmdb_kind}/{tmdb_id}/external_ids"
-    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        imdb = data.get("imdb_id")
-        return str(imdb).strip().lower() if imdb else None
-    except Exception:
-        return None
-
-@lru_cache(maxsize=2048)
 def get_tmdb_id(imdb_id, content_type=None):
-    """Map IMDb id to TMDB id."""
+    """Map IMDb id to TMDB id with type-aware selection."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
     headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
     kind = (content_type or "").lower()
@@ -199,28 +184,17 @@ def get_tmdb_id(imdb_id, content_type=None):
         )
 
         if kind in ("series", "tv"):
-            candidates = []
-            if tv_results:
-                candidates.extend([item.get("id") for item in tv_results if item.get("id")])
-            if tv_episode_results:
-                candidates.extend([item.get("show_id") for item in tv_episode_results if item.get("show_id")])
+            if tv_results and tv_results[0].get("id"):
+                return int(tv_results[0]["id"])
+            if tv_episode_results and tv_episode_results[0].get("show_id"):
+                return int(tv_episode_results[0]["show_id"])
             if tv_season_show_id:
-                candidates.append(tv_season_show_id)
-
-            imdb_norm = str(imdb_id).strip().lower()
-            for candidate in candidates:
-                reverse_imdb = _tmdb_external_imdb("tv", int(candidate))
-                if reverse_imdb and reverse_imdb == imdb_norm:
-                    return int(candidate)
+                return int(tv_season_show_id)
             return None
 
         if kind == "movie":
-            candidates = [item.get("id") for item in movie_results if item.get("id")]
-            imdb_norm = str(imdb_id).strip().lower()
-            for candidate in candidates:
-                reverse_imdb = _tmdb_external_imdb("movie", int(candidate))
-                if reverse_imdb and reverse_imdb == imdb_norm:
-                    return int(candidate)
+            if movie_results and movie_results[0].get("id"):
+                return int(movie_results[0]["id"])
             return None
 
         # Unknown type: best-effort fallback order.
@@ -473,23 +447,35 @@ def _decode_stream_id(raw_id):
     return decoded
 
 def parse_stream_id(content_type, raw_id):
-    """Parse Stremio id and resolve TMDB id + season/episode."""
+    """Parse Stremio id and resolve provider id + season/episode."""
     decoded_id = _decode_stream_id(raw_id)
     parts = [token for token in re.split(r'[:/]', decoded_id) if token]
+    kind = (content_type or "").lower()
 
     # IMDb format: tt1234567[:season:episode]
     if parts and parts[0].startswith('tt'):
         imdb_id = parts[0]
         season, episode = _extract_season_episode(parts[1:])
-        tmdb_id = get_tmdb_id(imdb_id, content_type)
-        kind = (content_type or "").lower()
 
-        if kind in ("series", "tv") and (not season or not episode):
-            _, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+        if kind == "movie":
+            return imdb_id, season, episode
+
+        tmdb_id = get_tmdb_id(imdb_id, kind)
+        hint_show_id = None
+        hint_season = None
+        hint_episode = None
+
+        if kind in ("series", "tv") and (not tmdb_id or not season or not episode):
+            hint_show_id, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+
+        if kind in ("series", "tv"):
             if not season and hint_season is not None:
                 season = str(hint_season)
             if not episode and hint_episode is not None:
                 episode = str(hint_episode)
+
+        if kind in ("series", "tv") and not tmdb_id and hint_show_id:
+            tmdb_id = int(hint_show_id)
 
         return tmdb_id, season, episode
 
