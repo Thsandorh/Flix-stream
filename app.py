@@ -653,7 +653,9 @@ def _is_megaplay_url(url):
     except Exception:
         return False
 
-    return host == "megaplay.link" or host.endswith(".megaplay.link")
+    return (host == "megaplay.link" or host.endswith(".megaplay.link") or
+            host == "rapid-cloud.co" or host.endswith(".rapid-cloud.co") or
+            host == "stormshade84.live" or host.endswith(".stormshade84.live"))
 
 def _is_likely_aniways_stream_url(url):
     """Filter obviously invalid Aniways candidates without probing upstream."""
