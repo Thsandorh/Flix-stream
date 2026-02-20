@@ -1,6 +1,6 @@
 {
     "id": "org.flickystream.addon",
-    "version": "1.0.33",
+    "version": "1.0.34",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee, AutoEmbed, Aniways, and Kitsu IDs.",
     "logo": "/static/icon.png",

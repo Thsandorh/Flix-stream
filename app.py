@@ -30,7 +30,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.33",
+    "version": "1.0.34",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee, AutoEmbed, Aniways, and Kitsu IDs.",
     "logo": "/static/icon.png",
@@ -75,6 +75,7 @@ ANIWAYS_COMMON_HEADERS = {
     "Origin": "https://aniways.xyz",
 }
 KITSU_API_BASE = "https://kitsu.io/api/edge"
+_ANIWAYS_PROBE_CACHE = {}
 
 LANG_MAP = {
     "English": "eng",
@@ -586,6 +587,9 @@ def fetch_aniways_streams(anime_id, episode_num):
                     if len(unique_urls) > 1:
                         stream_title = f"{stream_title} (Source {idx})"
 
+                    if not _is_likely_hls_playlist(stream_url, request_headers):
+                        continue
+
                     stream_obj = {
                         "name": f"Aniways - {server_name or 'Server'}",
                         "title": stream_title,
@@ -606,6 +610,45 @@ def fetch_aniways_streams(anime_id, episode_num):
         return streams
     except Exception:
         return []
+
+def _is_likely_hls_playlist(url, headers):
+    """Lightweight probe to filter dead/blocked Aniways sources."""
+    now = time.time()
+    cached = _ANIWAYS_PROBE_CACHE.get(url)
+    if cached and now - cached["ts"] < 300:
+        return cached["ok"]
+
+    probe_headers = dict(headers or {})
+    probe_headers.setdefault(
+        "Accept",
+        "application/vnd.apple.mpegurl, application/x-mpegURL, */*;q=0.8"
+    )
+
+    ok = False
+    try:
+        r = requests.get(url, headers=probe_headers, timeout=6, allow_redirects=True)
+        if 200 <= r.status_code < 300:
+            ctype = str(r.headers.get("Content-Type", "")).lower()
+            if "text/html" not in ctype:
+                snippet = ""
+                try:
+                    snippet = r.text[:600]
+                except Exception:
+                    try:
+                        snippet = r.content[:600].decode("utf-8", errors="ignore")
+                    except Exception:
+                        snippet = ""
+
+                s = snippet.lower()
+                if "#extm3u" in s or "#ext-x-" in s or "#extinf" in s:
+                    ok = True
+                elif "application/vnd.apple.mpegurl" in ctype or "application/x-mpegurl" in ctype:
+                    ok = True
+    except Exception:
+        ok = False
+
+    _ANIWAYS_PROBE_CACHE[url] = {"ok": ok, "ts": now}
+    return ok
 
 def _normalize_title_for_match(value):
     if not value:
