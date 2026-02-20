@@ -476,6 +476,72 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
         app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
     return streams
 
+def _decode_b64_loose(token):
+    raw = str(token or "").strip()
+    if not raw:
+        return None
+    padded = raw + ("=" * (-len(raw) % 4))
+    for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+        try:
+            return decoder(padded)
+        except Exception:
+            continue
+    return None
+
+def _extract_aniways_proxy_hls_details(proxy_hls):
+    """
+    Aniways proxyHls format:
+    /proxy/<provider>/<base64_json_headers>/<base64_target_url>
+    """
+    raw = str(proxy_hls or "").strip()
+    if not raw:
+        return None, {}
+
+    marker = "/proxy/"
+    idx = raw.find(marker)
+    if idx < 0:
+        return None, {}
+
+    suffix = raw[idx + len(marker):]
+    parts = suffix.split("/", 2)
+    if len(parts) < 3:
+        return None, {}
+
+    headers_token = parts[1].strip().split("?", 1)[0]
+    target_token = parts[2].strip().split("?", 1)[0]
+
+    parsed_headers = {}
+    decoded_headers = _decode_b64_loose(headers_token)
+    if decoded_headers:
+        try:
+            header_payload = json.loads(decoded_headers.decode("utf-8"))
+            if isinstance(header_payload, dict):
+                name_map = {
+                    "referer": "Referer",
+                    "origin": "Origin",
+                    "user-agent": "User-Agent",
+                }
+                for k, v in header_payload.items():
+                    key = str(k or "").strip()
+                    val = str(v or "").strip()
+                    if not key or not val:
+                        continue
+                    parsed_headers[name_map.get(key.lower(), key)] = val
+        except Exception:
+            pass
+
+    parsed_url = None
+    decoded_url = _decode_b64_loose(target_token)
+    if decoded_url:
+        try:
+            candidate = decoded_url.decode("utf-8").strip()
+            if candidate.startswith(("http://", "https://")):
+                parsed_url = candidate
+        except Exception:
+            pass
+
+    return parsed_url, parsed_headers
+
 def fetch_aniways_streams(anime_id, episode_num):
     """Fetch stream links from Aniways for a specific anime and episode number."""
     try:
@@ -513,24 +579,48 @@ def fetch_aniways_streams(anime_id, episode_num):
                 continue
 
             stream_api_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/servers/{server_id}"
-            params = {
-                "server": server_name.lower().replace(" ", "-") if server_name else "",
-                "type": server_type.lower() if server_type else ""
-            }
 
             try:
-                r_stream = requests.get(
-                    stream_api_url,
-                    headers=ANIWAYS_COMMON_HEADERS,
-                    params=params,
-                    timeout=5
-                )
-                if r_stream.status_code != 200:
+                server_candidates = []
+                raw_server_name = str(server_name or "").strip()
+                if raw_server_name:
+                    server_candidates.append(raw_server_name)
+                    server_candidates.append(raw_server_name.lower().replace(" ", "-"))
+                    server_candidates.append(raw_server_name.lower())
+                server_candidates = [v for idx, v in enumerate(server_candidates) if v and v not in server_candidates[:idx]]
+
+                type_candidates = []
+                raw_server_type = str(server_type or "").strip()
+                if raw_server_type:
+                    type_candidates.append(raw_server_type)
+                    type_candidates.append(raw_server_type.lower())
+                else:
+                    type_candidates.append("")
+                type_candidates = [v for idx, v in enumerate(type_candidates) if v not in type_candidates[:idx]]
+
+                r_stream = None
+                for server_param in server_candidates or [""]:
+                    for type_param in type_candidates:
+                        params = {"server": server_param, "type": type_param}
+                        resp = requests.get(
+                            stream_api_url,
+                            headers=ANIWAYS_COMMON_HEADERS,
+                            params=params,
+                            timeout=5
+                        )
+                        if resp.status_code == 200:
+                            r_stream = resp
+                            break
+                    if r_stream is not None:
+                        break
+
+                if r_stream is None:
                     continue
 
                 stream_data = r_stream.json()
                 source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
                 candidate_urls = []
+                proxy_hls_headers = {}
 
                 direct_url = stream_data.get("url")
                 if isinstance(direct_url, str) and direct_url:
@@ -549,6 +639,12 @@ def fetch_aniways_streams(anime_id, episode_num):
                         else:
                             candidate_urls.append(proxy_hls)
 
+                        resolved_proxy_url, resolved_proxy_headers = _extract_aniways_proxy_hls_details(proxy_hls)
+                        if resolved_proxy_url:
+                            candidate_urls.append(resolved_proxy_url)
+                        if resolved_proxy_headers:
+                            proxy_hls_headers.update(resolved_proxy_headers)
+
                 # Keep order but remove duplicates.
                 unique_urls = []
                 seen_urls = set()
@@ -564,7 +660,14 @@ def fetch_aniways_streams(anime_id, episode_num):
                 request_headers = dict(ANIWAYS_COMMON_HEADERS)
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
-                    request_headers.update(extra_headers)
+                    for h_key, h_val in extra_headers.items():
+                        key = str(h_key or "").strip()
+                        val = str(h_val or "").strip()
+                        if not key or not val:
+                            continue
+                        request_headers[key] = val
+                if proxy_hls_headers:
+                    request_headers.update(proxy_hls_headers)
 
                 subtitles = []
                 for track in (stream_data.get("tracks") or []):
@@ -618,7 +721,7 @@ def _is_likely_aniways_stream_url(url):
     if any(x in u for x in ("javascript:", "data:", "about:blank")):
         return False
     # Keep the working HLS patterns seen in Aniways responses.
-    if ".m3u8" in u or "/hls-playback/" in u:
+    if ".m3u8" in u or "/hls-playback/" in u or "/proxy/" in u:
         return True
     return False
 
