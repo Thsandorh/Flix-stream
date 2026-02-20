@@ -13,6 +13,7 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
 from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
+from hydrahd_integration import get_hydrahd_streams
 
 app = Flask(__name__)
 
@@ -878,6 +879,12 @@ def stream(type, id):
         for res in results:
             all_streams.extend(res)
 
+    # HydraHD provider (Movies only for now)
+    if kind == "movie":
+        hydrahd_streams = get_hydrahd_streams(imdb_id, tmdb_id, season, episode)
+        if hydrahd_streams:
+            all_streams.extend(hydrahd_streams)
+
     # Keep provider groups stable in the list (VidZee first, AutoEmbed second).
     def _provider_rank(stream_obj):
         name = str(stream_obj.get("name", "")).lower()
@@ -885,9 +892,11 @@ def stream(type, id):
             return 0
         if name.startswith("autoembed"):
             return 1
-        if name.startswith("aniways"):
+        if name.startswith("hydrahd"):
             return 2
-        return 3
+        if name.startswith("aniways"):
+            return 3
+        return 4
 
     all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
