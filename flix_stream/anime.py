@@ -309,6 +309,7 @@ def get_kitsu_anime_context(kitsu_id):
     titles = []
     mal_id = None
     anilist_id = None
+    media_type = None
 
     headers = {"User-Agent": COMMON_HEADERS["User-Agent"]}
     anime_url = f"{KITSU_API_BASE}/anime/{kitsu_id}"
@@ -333,6 +334,11 @@ def get_kitsu_anime_context(kitsu_id):
             canonical = attrs.get("canonicalTitle")
             if canonical:
                 titles.append(canonical)
+            subtype = str(attrs.get("subtype") or "").strip().lower()
+            if subtype == "movie":
+                media_type = "movie"
+            elif subtype:
+                media_type = "series"
             title_map = attrs.get("titles")
             if isinstance(title_map, dict):
                 for val in title_map.values():
@@ -378,7 +384,12 @@ def get_kitsu_anime_context(kitsu_id):
         seen.add(token.lower())
         unique_titles.append(token)
 
-    return {"titles": unique_titles, "mal_id": mal_id, "anilist_id": anilist_id}
+    return {
+        "titles": unique_titles,
+        "mal_id": mal_id,
+        "anilist_id": anilist_id,
+        "media_type": media_type,
+    }
 
 
 @lru_cache(maxsize=2048)
@@ -406,6 +417,8 @@ def get_aniways_anime_context(anime_id):
     titles = []
     media_type = None
     season_year = None
+    mal_id = None
+    anilist_id = None
 
     try:
         response = requests.get(
@@ -420,6 +433,17 @@ def get_aniways_anime_context(anime_id):
                     value = str(payload.get(key) or "").strip()
                     if value:
                         titles.append(value)
+
+                try:
+                    mal_raw = payload.get("malId")
+                    mal_id = int(mal_raw) if mal_raw is not None else None
+                except Exception:
+                    mal_id = None
+                try:
+                    anilist_raw = payload.get("anilistId")
+                    anilist_id = int(anilist_raw) if anilist_raw is not None else None
+                except Exception:
+                    anilist_id = None
 
                 metadata = payload.get("metadata")
                 if isinstance(metadata, dict):
@@ -445,6 +469,8 @@ def get_aniways_anime_context(anime_id):
         "titles": unique_titles,
         "media_type": media_type,
         "season_year": season_year,
+        "mal_id": mal_id,
+        "anilist_id": anilist_id,
     }
 
 

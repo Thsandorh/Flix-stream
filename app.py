@@ -9,6 +9,10 @@ from flix_stream.anime import (
     get_kitsu_anime_context,
     resolve_aniways_id_from_kitsu,
 )
+from flix_stream.anime_id_resolver import (
+    pick_best_tmdb_candidate,
+    resolve_external_ids_from_mal_anilist,
+)
 from flix_stream.config import AUTOEMBED_SERVERS, MANIFEST, SERVERS
 from flix_stream.crypto import get_decryption_key
 from flix_stream.ids import decode_stream_id, normalize_episode_part, provider_rank
@@ -55,14 +59,30 @@ def _resolve_tmdb_for_anime(source_prefix, source_id, anime_id):
     if source_prefix == "kitsu":
         ctx = get_kitsu_anime_context(source_id)
         title_candidates = (ctx.get("titles") or [])[:6]
-        hint = "series"
+        media_type = str(ctx.get("media_type") or "").lower()
+        hint = "movie" if media_type == "movie" else "series"
         year = None
+        mal_id = ctx.get("mal_id")
+        anilist_id = ctx.get("anilist_id")
     else:
         ctx = get_aniways_anime_context(anime_id)
         title_candidates = (ctx.get("titles") or [])[:6]
         media_type = str(ctx.get("media_type") or "").lower()
         hint = "movie" if media_type == "movie" else "series"
         year = ctx.get("season_year")
+        mal_id = ctx.get("mal_id")
+        anilist_id = ctx.get("anilist_id")
+
+    # Primary path: resolve by stable external ids (MAL/AniList -> Wikidata -> TMDB/IMDb).
+    external_candidates = resolve_external_ids_from_mal_anilist(mal_id=mal_id, anilist_id=anilist_id)
+    tmdb_id, tmdb_kind, imdb_id = pick_best_tmdb_candidate(external_candidates, hint=hint)
+    if tmdb_id:
+        return tmdb_id, tmdb_kind
+    if imdb_id and str(imdb_id).startswith("tt"):
+        kind_hint = "movie" if hint == "movie" else "series"
+        resolved_tmdb = get_tmdb_id(imdb_id, kind_hint)
+        if resolved_tmdb:
+            return resolved_tmdb, ("movie" if kind_hint == "movie" else "tv")
 
     for title in title_candidates:
         tmdb_id, tmdb_kind = search_tmdb_id_by_title(title, hint, year)
