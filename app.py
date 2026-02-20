@@ -566,7 +566,8 @@ def fetch_aniways_streams(anime_id, episode_num):
                 stream_data = r_stream.json()
                 source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
                 candidate_urls = []
-                request_headers = dict(ANIWAYS_COMMON_HEADERS)
+                # Keep stream playback headers minimal for better player compatibility (esp. mobile).
+                request_headers = {}
 
                 direct_url = stream_data.get("url")
                 if isinstance(direct_url, str) and direct_url:
@@ -630,6 +631,8 @@ def fetch_aniways_streams(anime_id, episode_num):
 
                     if not _is_likely_aniways_stream_url(stream_url):
                         continue
+                    if not _probe_stream_url(stream_url):
+                        continue
 
                     stream_request_headers = dict(request_headers)
                     if _is_megaplay_url(stream_url) or _is_aniways_proxy_hd_url(stream_url):
@@ -657,6 +660,19 @@ def fetch_aniways_streams(anime_id, episode_num):
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
 
+                    # Mobile clients can fail when strict proxy headers are enforced; add
+                    # a headerless fallback so the player can retry plain playback.
+                    fallback_obj = {
+                        "name": f"Aniways - {server_name or 'Server'}",
+                        "title": f"{stream_title} (Fallback)",
+                        "url": stream_url,
+                        "behaviorHints": {
+                            "notWebReady": True,
+                        },
+                    }
+                    if subtitles:
+                        fallback_obj["subtitles"] = subtitles
+                    streams.append(fallback_obj)
             except Exception:
                 continue
 
@@ -665,6 +681,39 @@ def fetch_aniways_streams(anime_id, episode_num):
         return []
 
 
+
+
+
+@lru_cache(maxsize=4096)
+def _probe_stream_url(url):
+    """Quick runtime probe: keep only reachable media-like URLs."""
+    target = str(url or "").strip()
+    if not target:
+        return False
+
+    # Keep probe lightweight to avoid slowing down stream responses too much.
+    probe_headers = {"User-Agent": COMMON_HEADERS["User-Agent"], "Range": "bytes=0-1023"}
+    try:
+        r = requests.get(target, headers=probe_headers, timeout=4, allow_redirects=True)
+    except Exception:
+        return False
+
+    if r.status_code not in (200, 206):
+        return False
+
+    ctype = str(r.headers.get("Content-Type", "")).lower()
+    body_head = (r.text[:256] if isinstance(r.text, str) else "").lower()
+
+    # Accept common media/HLS types and reject obvious HTML error pages.
+    if "html" in ctype and "#extm3u" not in body_head:
+        return False
+    if "mpegurl" in ctype or "video/" in ctype or "octet-stream" in ctype:
+        return True
+    if "#extm3u" in body_head:
+        return True
+
+    # Conservative fallback: allow successful non-HTML responses.
+    return "html" not in ctype
 
 def _is_megaplay_url(url):
     """Return True when stream URL points to MegaPlay hosts."""
