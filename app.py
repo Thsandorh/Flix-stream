@@ -30,7 +30,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.31",
+    "version": "1.0.33",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee, AutoEmbed, Aniways, and Kitsu IDs.",
     "logo": "/static/icon.png",
@@ -529,11 +529,36 @@ def fetch_aniways_streams(anime_id, episode_num):
                     continue
 
                 stream_data = r_stream.json()
-                stream_url = stream_data.get("url")
-                if not stream_url and isinstance(stream_data.get("source"), dict):
-                    source_obj = stream_data.get("source") or {}
-                    stream_url = source_obj.get("hls") or source_obj.get("url")
-                if not stream_url:
+                source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
+                candidate_urls = []
+
+                direct_url = stream_data.get("url")
+                if isinstance(direct_url, str) and direct_url:
+                    candidate_urls.append(direct_url)
+
+                if isinstance(source_obj, dict):
+                    source_hls = source_obj.get("hls") or source_obj.get("url")
+                    if isinstance(source_hls, str) and source_hls:
+                        candidate_urls.append(source_hls)
+
+                    proxy_hls = source_obj.get("proxyHls")
+                    if isinstance(proxy_hls, str) and proxy_hls:
+                        if proxy_hls.startswith("/"):
+                            candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
+                            candidate_urls.append(f"{ANIWAYS_API_BASE}{proxy_hls}")
+                        else:
+                            candidate_urls.append(proxy_hls)
+
+                # Keep order but remove duplicates.
+                unique_urls = []
+                seen_urls = set()
+                for candidate in candidate_urls:
+                    token = str(candidate or "").strip()
+                    if not token or token in seen_urls:
+                        continue
+                    seen_urls.add(token)
+                    unique_urls.append(token)
+                if not unique_urls:
                     continue
 
                 request_headers = dict(ANIWAYS_COMMON_HEADERS)
@@ -541,17 +566,40 @@ def fetch_aniways_streams(anime_id, episode_num):
                 if isinstance(extra_headers, dict):
                     request_headers.update(extra_headers)
 
-                streams.append({
-                    "name": f"Aniways - {server_name or 'Server'}",
-                    "title": f"[Aniways] Episode {episode_num} - {server_name or 'Server'}",
-                    "url": stream_url,
-                    "behaviorHints": {
-                        "notWebReady": True,
-                        "proxyHeaders": {
-                            "request": request_headers
+                subtitles = []
+                for track in (stream_data.get("tracks") or []):
+                    if not isinstance(track, dict):
+                        continue
+                    sub_url = track.get("url") or track.get("raw")
+                    if not isinstance(sub_url, str) or not sub_url:
+                        continue
+                    if sub_url.startswith("/"):
+                        sub_url = f"https://aniways.xyz{sub_url}"
+                    subtitles.append({
+                        "id": str(track.get("label") or track.get("kind") or "Aniways"),
+                        "lang": str(track.get("label") or "und"),
+                        "url": sub_url,
+                    })
+
+                for idx, stream_url in enumerate(unique_urls, start=1):
+                    stream_title = f"[Aniways] Episode {episode_num} - {server_name or 'Server'}"
+                    if len(unique_urls) > 1:
+                        stream_title = f"{stream_title} (Source {idx})"
+
+                    stream_obj = {
+                        "name": f"Aniways - {server_name or 'Server'}",
+                        "title": stream_title,
+                        "url": stream_url,
+                        "behaviorHints": {
+                            "notWebReady": True,
+                            "proxyHeaders": {
+                                "request": request_headers
+                            }
                         }
                     }
-                })
+                    if subtitles:
+                        stream_obj["subtitles"] = subtitles
+                    streams.append(stream_obj)
             except Exception:
                 continue
 
