@@ -64,6 +64,11 @@ class TestManifestStmify(unittest.TestCase):
         self.assertEqual(disabled_response.status_code, 200)
         self.assertEqual(disabled_response.get_json(), {"streams": []})
 
+    def test_stmify_meta_route_is_not_implemented_and_returns_404(self):
+        client = app.test_client()
+        response = client.get("/meta/series/stmify:tv1.json")
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

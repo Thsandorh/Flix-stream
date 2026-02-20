@@ -321,8 +321,7 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
         except Exception:
             skip = 0
     skip = max(skip, 0)
-    page = (skip // 20) + 1
-    metas = get_stmify_catalog(page)
+    metas = get_stmify_catalog(skip=skip, limit=20)
     return jsonify({"metas": metas})
 
 

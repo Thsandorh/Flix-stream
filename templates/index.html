@@ -173,7 +173,7 @@
                     <label class="check-item"><input id="enable_autoembed" type="checkbox"> Enable AutoEmbed</label>
                     <label class="check-item"><input id="enable_vixsrc" type="checkbox"> Enable VixSrc</label>
                     <label class="check-item"><input id="enable_aniways" type="checkbox"> Enable Aniways/Kitsu IDs</label>
-                    <label class="check-item"><input id="enable_stmify" type="checkbox"> Enable Stmify Live TV</label>
+                    <label class="check-item"><input id="enable_stmify" type="checkbox"> Enable Live TV</label>
                 </div>
             </section>
 
@@ -185,7 +185,26 @@
                     <label class="check-item"><input id="wyzie_apply_to_aniways_ids" type="checkbox"> Enable Wyzie on Aniways/Kitsu IDs</label>
                 </div>
                 <div class="field">
-                    <label for="wyzie_languages">Languages (comma separated)</label>
+                    <label for="wyzie_language_picker">Languages (selectable)</label>
+                    <select id="wyzie_language_picker" multiple size="8">
+                        <option value="en">English (en)</option>
+                        <option value="hu">Hungarian (hu)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="zh">Chinese (zh)</option>
+                        <option value="tr">Turkish (tr)</option>
+                        <option value="ar">Arabic (ar)</option>
+                        <option value="hi">Hindi (hi)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="wyzie_languages">Languages (comma separated, custom codes allowed)</label>
                     <input id="wyzie_languages" type="text" placeholder="en,hu,ja">
                 </div>
                 <div class="field">
@@ -227,6 +246,9 @@
         const BASE_URL = {{ base_url|tojson }};
         const DEFAULT_CONFIG = {{ default_config|tojson }};
         const INITIAL_CONFIG = {{ initial_config|tojson }};
+        const AVAILABLE_WYZIE_LANGUAGES = [
+            "en", "hu", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "tr", "ar", "hi",
+        ];
 
         function splitCsv(value) {
             return String(value || "")
@@ -258,6 +280,26 @@
             return cfg;
         }
 
+        function getSelectedWyzieLanguages() {
+            const picker = document.getElementById("wyzie_language_picker");
+            return Array.from(picker.selectedOptions).map((opt) => opt.value);
+        }
+
+        function syncLanguagePickerFromText() {
+            const picker = document.getElementById("wyzie_language_picker");
+            const selected = new Set(splitCsv(document.getElementById("wyzie_languages").value));
+            Array.from(picker.options).forEach((opt) => {
+                opt.selected = selected.has(opt.value);
+            });
+        }
+
+        function syncLanguageTextFromPicker() {
+            const textEl = document.getElementById("wyzie_languages");
+            const selected = getSelectedWyzieLanguages();
+            const customOnly = splitCsv(textEl.value).filter((lang) => !AVAILABLE_WYZIE_LANGUAGES.includes(lang));
+            textEl.value = [...selected, ...customOnly].join(",");
+        }
+
         function getConfigFromForm() {
             return normalizeConfig({
                 enable_vidzee: document.getElementById("enable_vidzee").checked,
@@ -268,7 +310,7 @@
                 enable_wyzie: document.getElementById("enable_wyzie").checked,
                 wyzie_hearing_impaired: document.getElementById("wyzie_hearing_impaired").checked,
                 wyzie_apply_to_aniways_ids: document.getElementById("wyzie_apply_to_aniways_ids").checked,
-                wyzie_languages: document.getElementById("wyzie_languages").value,
+                wyzie_languages: [...getSelectedWyzieLanguages(), ...splitCsv(document.getElementById("wyzie_languages").value)],
                 wyzie_formats: document.getElementById("wyzie_formats").value,
                 wyzie_source: document.getElementById("wyzie_source").value,
                 wyzie_max_results: document.getElementById("wyzie_max_results").value,
@@ -285,6 +327,11 @@
             document.getElementById("enable_wyzie").checked = cfg.enable_wyzie;
             document.getElementById("wyzie_hearing_impaired").checked = cfg.wyzie_hearing_impaired;
             document.getElementById("wyzie_apply_to_aniways_ids").checked = cfg.wyzie_apply_to_aniways_ids;
+            const selectedSet = new Set(cfg.wyzie_languages);
+            const picker = document.getElementById("wyzie_language_picker");
+            Array.from(picker.options).forEach((opt) => {
+                opt.selected = selectedSet.has(opt.value);
+            });
             document.getElementById("wyzie_languages").value = cfg.wyzie_languages.join(",");
             document.getElementById("wyzie_formats").value = cfg.wyzie_formats.join(",");
             document.getElementById("wyzie_source").value = cfg.wyzie_source;
@@ -375,7 +422,6 @@
                 "enable_wyzie",
                 "wyzie_hearing_impaired",
                 "wyzie_apply_to_aniways_ids",
-                "wyzie_languages",
                 "wyzie_formats",
                 "wyzie_source",
                 "wyzie_max_results",
@@ -384,6 +430,15 @@
                 const el = document.getElementById(id);
                 const eventName = el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input";
                 el.addEventListener(eventName, refreshPreviewAndMeta);
+            });
+
+            document.getElementById("wyzie_language_picker").addEventListener("change", () => {
+                syncLanguageTextFromPicker();
+                refreshPreviewAndMeta();
+            });
+            document.getElementById("wyzie_languages").addEventListener("input", () => {
+                syncLanguagePickerFromText();
+                refreshPreviewAndMeta();
             });
         }
 

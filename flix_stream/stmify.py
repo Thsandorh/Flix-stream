@@ -1,14 +1,17 @@
+import json
 import logging
-import re
+import os
 from functools import lru_cache
-
-import requests
 
 
 logger = logging.getLogger(__name__)
 
 STMIFY_BASE_URL = "https://stmify.com"
-CDN_BASE_URL = "https://cdn.stmify.com"
+JSON_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "static",
+    "stmify_channels.json",
+)
 
 COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -17,136 +20,104 @@ COMMON_HEADERS = {
 }
 
 
-def _normalize_page(page):
+def _normalize_int(value, default):
     try:
-        parsed = int(page)
+        parsed = int(value)
     except Exception:
-        return 1
-    return max(parsed, 1)
+        return default
+    return parsed
 
 
-@lru_cache(maxsize=32)
-def get_stmify_catalog(page=1):
-    page = _normalize_page(page)
-    url = f"{STMIFY_BASE_URL}/live-tv/"
-    if page > 1:
-        url = f"{STMIFY_BASE_URL}/live-tv/page/{page}/"
-
+def _load_channels_data():
     try:
-        response = requests.get(url, headers=COMMON_HEADERS, timeout=10)
-        response.raise_for_status()
+        with open(JSON_PATH, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
     except Exception as exc:
-        logger.warning("Failed to fetch Stmify catalog page %s: %s", page, exc)
+        logger.warning("Failed to load Stmify static catalog: %s", exc)
         return []
+    return payload if isinstance(payload, list) else []
 
-    html = response.text
-    items = html.split('class="archive-item"')
+
+@lru_cache(maxsize=1)
+def load_channels():
+    return _load_channels_data()
+
+
+def get_stmify_catalog(skip=0, limit=20):
+    skip = max(_normalize_int(skip, 0), 0)
+    limit = max(_normalize_int(limit, 20), 1)
+    channels = list(load_channels())
+    channels.sort(key=lambda item: 0 if isinstance(item, dict) and item.get("stream_url") else 1)
+
     metas = []
-    for item in items[1:]:
-        link_match = re.search(r'<a\s+href="([^"]+)"', item)
-        if not link_match:
+    for channel in channels[skip : skip + limit]:
+        if not isinstance(channel, dict):
             continue
-
-        slug_match = re.search(r"/live-tv/([^/]+)/", link_match.group(1))
-        if not slug_match:
-            continue
-        slug = slug_match.group(1)
-
-        data_src_match = re.search(r'<img[^>]+data-src="([^"]+)"', item)
-        img_match = re.search(r'<img[^>]+src="([^"]+)"', item)
-        title_match = re.search(r'<img[^>]+alt="([^"]+)"', item)
-
-        poster = data_src_match.group(1) if data_src_match else (img_match.group(1) if img_match else None)
-        name = title_match.group(1) if title_match else slug.replace("-", " ").title()
+        channel_id = str(channel.get("id") or "").strip()
+        if not channel_id:
+            slug = str(channel.get("slug") or "").strip()
+            if not slug:
+                continue
+            channel_id = f"stmify:{slug}"
+        name = str(channel.get("name") or "").strip() or channel_id
+        description = str(channel.get("description") or "").strip()
+        if not description:
+            description = f"Watch {name} live on Stmify."
+        if channel.get("stream_url"):
+            description = f"{description}\n(Stream Available)"
+        else:
+            description = f"{description}\n(No Stream)"
         metas.append(
             {
-                "id": f"stmify:{slug}",
+                "id": channel_id,
                 "type": "series",
                 "name": name,
-                "poster": poster,
-                "description": f"Watch {name} live on Stmify.",
+                "poster": channel.get("poster"),
+                "description": description,
             }
         )
-
     return metas
 
 
-def _extract_iframe_src(html):
-    iframe_match = re.search(r'src="(//cdn\.stmify\.com/embed[^"]+)"', html)
-    if not iframe_match:
-        iframe_match = re.search(r'src="(https://cdn\.stmify\.com/embed[^"]+)"', html)
-    if not iframe_match:
-        return None
-    iframe_src = iframe_match.group(1)
-    if iframe_src.startswith("//"):
-        return f"https:{iframe_src}"
-    return iframe_src
-
-
 def get_stmify_stream(stmify_id):
-    if not str(stmify_id).startswith("stmify:"):
+    raw_id = str(stmify_id or "").strip()
+    if not raw_id.startswith("stmify:"):
         return []
 
-    slug = str(stmify_id).split(":", 1)[1].strip()
+    slug = raw_id.split(":", 1)[1].strip()
     if not slug:
         return []
-    channel_url = f"{STMIFY_BASE_URL}/live-tv/{slug}/"
 
-    try:
-        response = requests.get(channel_url, headers=COMMON_HEADERS, timeout=10)
-        response.raise_for_status()
-        iframe_src = _extract_iframe_src(response.text)
-        if not iframe_src:
-            return []
-
-        iframe_headers = dict(COMMON_HEADERS)
-        iframe_headers["Referer"] = channel_url
-        iframe_response = requests.get(iframe_src, headers=iframe_headers, timeout=10)
-        iframe_response.raise_for_status()
-        embed_html = iframe_response.text
-
-        stream_id_match = re.search(r'const\s+streamId\s*=\s*"([^"]+)"', embed_html)
-        country_match = re.search(r'const\s+country\s*=\s*"([^"]+)"', embed_html)
-        if not stream_id_match or not country_match:
-            return []
-
-        stream_key = stream_id_match.group(1)
-        country = country_match.group(1)
-
-        api_url = f"{CDN_BASE_URL}/embed-free/fetch_streams.php?country={country}"
-        api_headers = dict(COMMON_HEADERS)
-        api_headers["Referer"] = iframe_src
-        api_headers["X-Requested-With"] = "XMLHttpRequest"
-        api_response = requests.get(api_url, headers=api_headers, timeout=10)
-        api_response.raise_for_status()
-        data = api_response.json()
-        if not isinstance(data, dict):
-            return []
-
-        stream_info = data.get(stream_key)
-        if not isinstance(stream_info, dict):
-            return []
-
-        stream_url = stream_info.get("url")
-        if not stream_url:
-            return []
-
-        return [
-            {
-                "name": "Stmify",
-                "title": f"Live: {slug.replace('-', ' ').title()}",
-                "url": stream_url,
-                "behaviorHints": {
-                    "notWebReady": True,
-                    "proxyHeaders": {
-                        "request": {
-                            "User-Agent": COMMON_HEADERS["User-Agent"],
-                            "Referer": f"{CDN_BASE_URL}/",
-                        }
-                    },
-                },
-            }
-        ]
-    except Exception as exc:
-        logger.warning("Failed to resolve Stmify stream for %s: %s", slug, exc)
+    channels = load_channels()
+    channel = next(
+        (
+            item
+            for item in channels
+            if isinstance(item, dict) and (item.get("slug") == slug or item.get("id") == raw_id)
+        ),
+        None,
+    )
+    if not isinstance(channel, dict):
         return []
+
+    stream_url = channel.get("stream_url")
+    if not stream_url:
+        return []
+
+    return [
+        {
+            "name": "Stmify",
+            "title": f"Live: {channel.get('name') or slug.replace('-', ' ').title()}",
+            "url": stream_url,
+            "behaviorHints": {
+                "notWebReady": True,
+                "proxyHeaders": {
+                    "request": {
+                        "User-Agent": COMMON_HEADERS["User-Agent"],
+                        "Referer": COMMON_HEADERS["Referer"],
+                        "Origin": COMMON_HEADERS["Origin"],
+                    }
+                },
+            },
+        }
+    ]
