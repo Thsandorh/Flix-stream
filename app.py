@@ -31,7 +31,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.28",
+    "version": "1.0.29",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee, AutoEmbed, and Cineby.",
     "logo": "/static/icon.png",

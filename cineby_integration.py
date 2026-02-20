@@ -17,6 +17,34 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+def _collect_urls(payload):
+    """Collect candidate stream URLs from nested payload structures."""
+    url_keys = {"url", "file", "src", "link", "m3u8", "playlist"}
+    seen = set()
+    collected = []
+
+    def _walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key.lower() in url_keys and isinstance(value, str):
+                    candidate = value.strip()
+                    if candidate.startswith(("http://", "https://")) and candidate not in seen:
+                        seen.add(candidate)
+                        collected.append(candidate)
+                else:
+                    _walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+        elif isinstance(node, str):
+            candidate = node.strip()
+            if candidate.startswith(("http://", "https://")) and candidate not in seen:
+                seen.add(candidate)
+                collected.append(candidate)
+
+    _walk(payload)
+    return collected
+
 class CinebyProvider:
     BASE_URL = "https://api.videasy.net"
     SALT = "d486ae1ce6fdbe63b60bd1704541fcf0"
@@ -78,11 +106,17 @@ class CinebyProvider:
                 
                 decrypted = CinebyProvider.decrypt_response(response_text, key, tmdb_id)
                 if decrypted:
-                    data = json.loads(decrypted)
-                    sources = data.get("sources")
-                    if not isinstance(sources, list):
-                        sources = (data.get("data") or {}).get("sources", [])
+                    try:
+                        data = json.loads(decrypted)
+                    except Exception:
+                        data = decrypted
 
+                    sources = data.get("sources") if isinstance(data, dict) else None
+                    if not isinstance(sources, list):
+                        inner_data = data.get("data") if isinstance(data, dict) else None
+                        sources = inner_data.get("sources", []) if isinstance(inner_data, dict) else []
+
+                    emitted = False
                     for source in sources:
                         stream_url = source.get("url") or source.get("file") or source.get("src") or source.get("link")
                         if not stream_url:
@@ -103,6 +137,22 @@ class CinebyProvider:
                                 }
                             }
                         })
+                        emitted = True
+
+                    # Fallback: extract any nested URL-like field from unknown payload shapes.
+                    if not emitted:
+                        for idx, stream_url in enumerate(_collect_urls(data), start=1):
+                            streams.append({
+                                "name": f"Cineby - {provider}",
+                                "title": f"Cineby Source {idx}",
+                                "url": stream_url,
+                                "behaviorHints": {
+                                    "notWebReady": True,
+                                    "proxyHeaders": {
+                                        "request": headers
+                                    }
+                                }
+                            })
             except Exception as e:
                 logger.error(f"Cineby fetch failed for {provider}: {e}")
                 
