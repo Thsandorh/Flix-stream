@@ -32,7 +32,7 @@ MANIFEST = {
     "id": "org.flickystream.addon",
     "version": "1.0.22",
     "name": "Flix-Streams",
-    "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
+    "description": "Stream movies and series from VidZee and AutoEmbed.",
     "resources": ["stream"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
