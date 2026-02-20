@@ -657,6 +657,14 @@ def fetch_aniways_streams(anime_id, episode_num):
                 if not unique_urls:
                     continue
 
+                # Prefer direct upstream media URLs over Aniways API proxy URLs when both exist.
+                preferred_urls = [u for u in unique_urls if not _is_aniways_api_proxy_url(u)]
+                if preferred_urls:
+                    unique_urls = preferred_urls
+
+                # Keep one URL per server entry to avoid cluttered duplicate rows in clients.
+                unique_urls = unique_urls[:1]
+
                 request_headers = dict(ANIWAYS_COMMON_HEADERS)
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
@@ -684,16 +692,15 @@ def fetch_aniways_streams(anime_id, episode_num):
                         "url": sub_url,
                     })
 
-                for idx, stream_url in enumerate(unique_urls, start=1):
-                    stream_title = f"[Aniways] Episode {episode_num} - {server_name or 'Server'}"
-                    if len(unique_urls) > 1:
-                        stream_title = f"{stream_title} (Source {idx})"
+                for stream_url in unique_urls:
+                    variant = str(server_type or "").upper() or "SUB"
+                    stream_title = f"[Aniways] Episode {episode_num} - {server_name or 'Server'} [{variant}]"
 
                     if not _is_likely_aniways_stream_url(stream_url):
                         continue
 
                     stream_obj = {
-                        "name": f"Aniways - {server_name or 'Server'}",
+                        "name": f"Aniways - {server_name or 'Server'} [{variant}]",
                         "title": stream_title,
                         "url": stream_url,
                         "behaviorHints": {
@@ -724,6 +731,10 @@ def _is_likely_aniways_stream_url(url):
     if ".m3u8" in u or "/hls-playback/" in u or "/proxy/" in u:
         return True
     return False
+
+def _is_aniways_api_proxy_url(url):
+    u = str(url or "").strip().lower()
+    return u.startswith("https://api.aniways.xyz/proxy/") or u.startswith("http://api.aniways.xyz/proxy/")
 
 def _normalize_title_for_match(value):
     if not value:
