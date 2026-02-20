@@ -29,7 +29,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -163,6 +163,21 @@ def decrypt_link(encrypted_link, key_str):
         return None
 
 @lru_cache(maxsize=2048)
+def _tmdb_external_imdb(kind, tmdb_id):
+    """Fetch IMDb id from TMDB external_ids endpoint for strict mapping validation."""
+    tmdb_kind = "tv" if kind in ("series", "tv") else "movie"
+    url = f"https://api.themoviedb.org/3/{tmdb_kind}/{tmdb_id}/external_ids"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        imdb = data.get("imdb_id")
+        return str(imdb).strip().lower() if imdb else None
+    except Exception:
+        return None
+
+@lru_cache(maxsize=2048)
 def get_tmdb_id(imdb_id, content_type=None):
     """Map IMDb id to TMDB id."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
@@ -184,17 +199,28 @@ def get_tmdb_id(imdb_id, content_type=None):
         )
 
         if kind in ("series", "tv"):
+            candidates = []
             if tv_results:
-                return tv_results[0].get("id")
-            if tv_episode_results and tv_episode_results[0].get("show_id"):
-                return tv_episode_results[0].get("show_id")
+                candidates.extend([item.get("id") for item in tv_results if item.get("id")])
+            if tv_episode_results:
+                candidates.extend([item.get("show_id") for item in tv_episode_results if item.get("show_id")])
             if tv_season_show_id:
-                return tv_season_show_id
+                candidates.append(tv_season_show_id)
+
+            imdb_norm = str(imdb_id).strip().lower()
+            for candidate in candidates:
+                reverse_imdb = _tmdb_external_imdb("tv", int(candidate))
+                if reverse_imdb and reverse_imdb == imdb_norm:
+                    return int(candidate)
             return None
 
         if kind == "movie":
-            if movie_results:
-                return movie_results[0].get("id")
+            candidates = [item.get("id") for item in movie_results if item.get("id")]
+            imdb_norm = str(imdb_id).strip().lower()
+            for candidate in candidates:
+                reverse_imdb = _tmdb_external_imdb("movie", int(candidate))
+                if reverse_imdb and reverse_imdb == imdb_norm:
+                    return int(candidate)
             return None
 
         # Unknown type: best-effort fallback order.
