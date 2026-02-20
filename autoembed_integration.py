@@ -23,22 +23,35 @@ COMMON_HEADERS = {
 def decrypt_response(data_json):
     """Decrypts the AutoEmbed API response using PBKDF2 and AES-CBC."""
     try:
-        if "data" in data_json:
+        # Check if wrapped in "data" (some endpoints do this)
+        if "data" in data_json and isinstance(data_json["data"], str):
              inner_json_str = base64.b64decode(data_json["data"]).decode('utf-8')
              data_json = json.loads(inner_json_str)
 
-        key_hex = data_json['key']
-        iv_hex = data_json['iv']
-        salt_hex = data_json['salt']
-        iterations = data_json['iterations']
-        encrypted_data_b64 = data_json['encryptedData']
+        key_hex = data_json.get('key')
+        iv_hex = data_json.get('iv')
+        salt_hex = data_json.get('salt')
+        iterations = data_json.get('iterations')
+        encrypted_data_b64 = data_json.get('encryptedData')
 
+        if not all([key_hex, iv_hex, salt_hex, iterations, encrypted_data_b64]):
+            print("Missing encryption parameters in JSON.")
+            return None
+
+        # Convert hex/base64 to bytes
+        # Some fields might be hex strings of the bytes
+        # Let's ensure types are correct. 'key' in JSON is usually the password for PBKDF2.
+        # Wait, the JS logic typically uses 'key' as the password, 'salt' as salt.
+
+        password = key_hex.encode('utf-8')
         salt = bytes.fromhex(salt_hex)
         iv = bytes.fromhex(iv_hex)
         encrypted_data = base64.b64decode(encrypted_data_b64)
 
-        key = PBKDF2(key_hex, salt, dkLen=32, count=iterations, hmac_hash_module=SHA256)
+        # Derive key
+        key = PBKDF2(password, salt, dkLen=32, count=iterations, hmac_hash_module=SHA256)
 
+        # Decrypt
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
         return json.loads(decrypted_data.decode('utf-8'))
@@ -46,22 +59,17 @@ def decrypt_response(data_json):
         print(f"Decryption failed: {e}")
         return None
 
-def fetch_server_streams(tmdb_id, sr_info, season, episode, parse_subtitles_func):
+def fetch_server_streams(tmdb_id, sr_info, season=None, episode=None):
     """
     Worker function to fetch streams from a specific server.
-
-    Args:
-        tmdb_id: The TMDB ID of the content.
-        sr_info: Dictionary containing server 'id' and 'name'.
-        season: Season number (string) or None.
-        episode: Episode number (string) or None.
-        parse_subtitles_func: Function to parse subtitles (use existing one).
     """
     sr = sr_info["id"]
+    # Base API URL
     api_url = f"https://test.autoembed.cc/api/server?id={tmdb_id}&sr={sr}"
 
     # Determine Referer
     if season and episode:
+        # For TV shows, parameters are usually ss and ep
         api_url += f"&ss={season}&ep={episode}"
         referer = f"https://test.autoembed.cc/embed/tv/{tmdb_id}/{season}/{episode}"
     else:
@@ -70,22 +78,26 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, parse_subtitles_func
     headers = COMMON_HEADERS.copy()
     headers["Referer"] = referer
 
+    print(f"Fetching from: {api_url}")
     streams = []
     try:
-        r = requests.get(api_url, headers=headers, timeout=10)
+        r = requests.get(api_url, headers=headers, timeout=15)
         r.raise_for_status()
         data = r.json()
 
+        # print(f"Raw response (truncated): {str(data)[:100]}...")
+
         decrypted_data = decrypt_response(data)
         if not decrypted_data:
+            print("Failed to decrypt response.")
             return []
 
-        # Parse subtitles from decrypted data
-        raw_subs = decrypted_data.get("tracks", []) or decrypted_data.get("subtitles", [])
-        subtitles = parse_subtitles_func(raw_subs)
-
         # Stream URL
-        stream_url = decrypted_data.get("url")
+        # The structure of decrypted_data usually contains 'url' or 'source'
+        # Let's print keys to be sure
+        # print(f"Decrypted keys: {decrypted_data.keys()}")
+
+        stream_url = decrypted_data.get("url") or decrypted_data.get("link")
         if stream_url:
              stream_obj = {
                 "name": f"AutoEmbed - {sr_info['name']}",
@@ -98,10 +110,23 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, parse_subtitles_func
                     }
                 }
             }
-             if subtitles:
-                stream_obj["subtitles"] = subtitles
              streams.append(stream_obj)
+             print(f"Found stream: {stream_url}")
+        else:
+             print("No stream URL found in decrypted data.")
 
     except Exception as e:
         print(f"Error fetching streams for server {sr}: {e}")
     return streams
+
+if __name__ == "__main__":
+    # Test with a known movie (e.g., Sintel or similar open content, or just a popular one)
+    # Using TMDB ID for 'Dune' (2021) -> 438631 or similar.
+    # Let's try 550 (Fight Club)
+    test_id = "550"
+    print(f"Testing AutoEmbed fetch for Movie ID: {test_id}")
+
+    for server in SERVERS:
+        print(f"Testing Server: {server['name']} (ID: {server['id']})")
+        fetch_server_streams(test_id, server)
+        print("-" * 30)

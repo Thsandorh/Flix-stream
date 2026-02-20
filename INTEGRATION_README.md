@@ -67,6 +67,10 @@ Aniways provides direct m3u8 links via a multi-step API process.
      - `server`: The server name converted to lowercase with spaces replaced by dashes (e.g., "HD-1" -> `hd-1`).
      - `type`: The stream type (e.g., `sub`).
    - **Example:** `?server=hd-1&type=sub`
+4. **Header Extraction:**
+   - The API response often includes a `proxyHls` field (Base64 encoded JSON).
+   - You **must** decode this field to extract the `Referer` and `Origin` headers required to play the stream.
+   - Use the `extract_headers_from_proxy` function provided in the blueprint.
 
 ---
 

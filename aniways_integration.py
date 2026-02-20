@@ -1,6 +1,7 @@
 import requests
 import re
 import json
+import base64
 
 # Headers imitating a browser
 COMMON_HEADERS = {
@@ -10,6 +11,35 @@ COMMON_HEADERS = {
 }
 
 API_BASE = "https://api.aniways.xyz"
+
+def extract_headers_from_proxy(proxy_url):
+    """
+    Extracts Referer and Origin headers from the proxyHls string.
+    Format is typically: /proxy/hd/{base64_headers}/{base64_url}
+    """
+    try:
+        # Split by '/' and find the segment starting with 'ey' (base64 for JSON '{')
+        parts = proxy_url.split('/')
+        for part in parts:
+            if part.startswith('ey'):
+                # Add padding if necessary
+                padding = len(part) % 4
+                if padding:
+                    part += '=' * (4 - padding)
+
+                decoded_bytes = base64.b64decode(part)
+                headers_json = json.loads(decoded_bytes)
+
+                # Normalize keys to title case if needed, but requests handles case-insensitivity
+                headers = {}
+                if "referer" in headers_json:
+                    headers["Referer"] = headers_json["referer"]
+                if "origin" in headers_json:
+                    headers["Origin"] = headers_json["origin"]
+                return headers
+    except Exception as e:
+        print(f"  Error parsing proxy headers: {e}")
+    return {}
 
 def fetch_aniways_stream(anime_id, episode_num):
     """
@@ -87,15 +117,25 @@ def fetch_aniways_stream(anime_id, episode_num):
                 if r_stream.status_code == 200:
                     stream_data = r_stream.json()
                     print(f"  Response: {json.dumps(stream_data)}")
-                    # The response likely contains the stream URL directly or nested
-                    # Example expected: { "url": "...", "headers": ... }
-                    if "url" in stream_data:
+
+                    # Parse the nested source object
+                    source_obj = stream_data.get("source")
+                    if source_obj and "hls" in source_obj:
+                        hls_url = source_obj["hls"]
+                        proxy_hls = source_obj.get("proxyHls", "")
+
+                        # Extract headers from proxyHls if available
+                        stream_headers = {}
+                        if proxy_hls:
+                            stream_headers = extract_headers_from_proxy(proxy_hls)
+
                         streams.append({
                             "name": f"Aniways - {server_name}",
-                            "url": stream_data["url"],
-                            "headers": stream_data.get("headers", {})
+                            "url": hls_url,
+                            "headers": stream_headers
                         })
-                        print(f"  > Found stream: {stream_data['url'][:50]}...")
+                        print(f"  > Found stream: {hls_url[:50]}...")
+                        print(f"    Required Headers: {stream_headers}")
                 else:
                     print(f"  Failed to get stream from API: {r_stream.status_code} - {r_stream.text}")
 
