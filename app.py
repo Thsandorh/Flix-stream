@@ -29,7 +29,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.11",
+    "version": "1.0.12",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -192,6 +192,12 @@ def get_tmdb_id(imdb_id, content_type=None):
                 return tv_season_show_id
             return None
 
+        if kind == "movie":
+            if movie_results:
+                return movie_results[0].get("id")
+            return None
+
+        # Unknown type: best-effort fallback order.
         if movie_results:
             return movie_results[0].get("id")
         if tv_results:
@@ -452,10 +458,8 @@ def parse_stream_id(content_type, raw_id):
         tmdb_id = get_tmdb_id(imdb_id, content_type)
         kind = (content_type or "").lower()
 
-        if kind in ("series", "tv") and (not season or not episode or not tmdb_id):
-            hint_tmdb_id, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
-            if not tmdb_id:
-                tmdb_id = hint_tmdb_id
+        if kind in ("series", "tv") and (not season or not episode):
+            _, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
             if not season and hint_season is not None:
                 season = str(hint_season)
             if not episode and hint_episode is not None:
@@ -476,12 +480,6 @@ def parse_stream_id(content_type, raw_id):
                 tmdb_id = int(token)
                 season, episode = _extract_season_episode(parts[i + 1:])
                 break
-        return tmdb_id, season, episode
-
-    # Prefixless numeric TMDB.
-    if parts and parts[0].isdigit():
-        tmdb_id = int(parts[0])
-        season, episode = _extract_season_episode(parts[1:])
         return tmdb_id, season, episode
 
     return None, None, None
