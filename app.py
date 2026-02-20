@@ -5,7 +5,7 @@ import base64
 import hashlib
 import time
 import requests
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 from functools import lru_cache
 from flask import Flask, jsonify, render_template, request
 from Crypto.Cipher import AES
@@ -619,6 +619,10 @@ def fetch_aniways_streams(anime_id, episode_num):
                     if not _is_likely_aniways_stream_url(stream_url):
                         continue
 
+                    stream_request_headers = dict(request_headers)
+                    if _is_megaplay_url(stream_url):
+                        stream_request_headers["User-Agent"] = COMMON_HEADERS["User-Agent"]
+
                     stream_obj = {
                         "name": f"Aniways - {server_name or 'Server'}",
                         "title": stream_title,
@@ -626,7 +630,7 @@ def fetch_aniways_streams(anime_id, episode_num):
                         "behaviorHints": {
                             "notWebReady": True,
                             "proxyHeaders": {
-                                "request": request_headers
+                                "request": stream_request_headers
                             }
                         }
                     }
@@ -639,6 +643,17 @@ def fetch_aniways_streams(anime_id, episode_num):
         return streams
     except Exception:
         return []
+
+
+
+def _is_megaplay_url(url):
+    """Return True when stream URL points to MegaPlay hosts."""
+    try:
+        host = (urlparse(str(url or "")).hostname or "").lower()
+    except Exception:
+        return False
+
+    return host == "megaplay.link" or host.endswith(".megaplay.link")
 
 def _is_likely_aniways_stream_url(url):
     """Filter obviously invalid Aniways candidates without probing upstream."""
