@@ -4,6 +4,7 @@ import base64
 import hashlib
 import time
 import requests
+from urllib.parse import unquote
 from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
@@ -25,7 +26,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.0",
+    "version": "1.0.19",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -150,21 +151,100 @@ def decrypt_link(encrypted_link, key_str):
     except Exception:
         return None
 
-@lru_cache(maxsize=1024)
-def get_tmdb_id(imdb_id):
-    """Maps IMDB ID to TMDB ID using the TMDB API."""
+@lru_cache(maxsize=2048)
+def get_tmdb_id(imdb_id, content_type=None):
+    """Maps IMDb id to TMDB id with type-aware selection."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
     headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    kind = (content_type or "").lower()
+
     try:
         r = requests.get(url, headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
-        if data.get("movie_results"):
-            return data["movie_results"][0]["id"]
-        if data.get("tv_results"):
-            return data["tv_results"][0]["id"]
+        movie_results = data.get("movie_results") or []
+        tv_results = data.get("tv_results") or []
+        tv_episode_results = data.get("tv_episode_results") or []
+        tv_season_results = data.get("tv_season_results") or []
+        tv_season_show_id = next(
+            (item.get("show_id") for item in tv_season_results if item.get("show_id")),
+            None,
+        )
+
+        if kind in ("series", "tv"):
+            if tv_results:
+                return tv_results[0]["id"]
+            if tv_episode_results and tv_episode_results[0].get("show_id"):
+                return tv_episode_results[0]["show_id"]
+            if tv_season_show_id:
+                return tv_season_show_id
+            return None
+
+        if kind == "movie":
+            if movie_results:
+                return movie_results[0]["id"]
+            return None
+
+        # Fallback if type is unknown.
+        if movie_results:
+            return movie_results[0]["id"]
+        if tv_results:
+            return tv_results[0]["id"]
+        if tv_episode_results and tv_episode_results[0].get("show_id"):
+            return tv_episode_results[0]["show_id"]
+        if tv_season_show_id:
+            return tv_season_show_id
     except Exception as e:
         app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
+
+    return None
+
+@lru_cache(maxsize=2048)
+def get_series_context_from_imdb(imdb_id):
+    """Resolve show/season/episode context from an IMDb episode id."""
+    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+
+        tv_episode_results = data.get("tv_episode_results") or []
+        if tv_episode_results:
+            item = tv_episode_results[0]
+            return item.get("show_id"), item.get("season_number"), item.get("episode_number")
+
+        tv_season_results = data.get("tv_season_results") or []
+        if tv_season_results:
+            item = tv_season_results[0]
+            return item.get("show_id"), item.get("season_number"), None
+    except Exception as e:
+        app.logger.error(f"TMDB series context lookup failed for {imdb_id}: {e}")
+
+    return None, None, None
+
+def _decode_stream_id(raw_id):
+    """Decode URL-encoded stream ids, including double-encoded variants."""
+    decoded = str(raw_id or "")
+    for _ in range(2):
+        next_decoded = unquote(decoded)
+        if next_decoded == decoded:
+            break
+        decoded = next_decoded
+    return decoded
+
+def _normalize_episode_part(value):
+    if value is None:
+        return None
+    token = str(value).strip()
+    if not token:
+        return None
+    if token.isdigit():
+        return str(int(token))
+    m = re.search(r"\d+", token)
+    if m:
+        return str(int(m.group(0)))
     return None
 
 def parse_subtitles(subtitle_list):
@@ -253,26 +333,31 @@ def index():
 def manifest():
     return jsonify(MANIFEST)
 
-@app.route('/stream/<type>/<id>.json')
+@app.route('/stream/<type>/<path:id>.json')
 def stream(type, id):
-    # ID format: tt1234567:1:1
-    parts = id.split(':')
-    imdb_id = parts[0]
-    season = parts[1] if len(parts) > 1 else None
-    episode = parts[2] if len(parts) > 2 else None
+    # Stremio format: tt1234567[:season:episode] (may be URL-encoded)
+    decoded_id = _decode_stream_id(id)
+    parts = [p for p in decoded_id.split(':') if p]
+    imdb_id = parts[0] if parts else ""
+    kind = (type or "").lower()
+    season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
+    episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
 
-    # Sanitize season and episode to remove leading zeros (e.g. "01" -> "1")
-    # This is crucial because VidZee API returns 404 for "01"
-    try:
-        if season:
-            season = str(int(season))
-        if episode:
-            episode = str(int(episode))
-    except ValueError:
-        pass
+    if not imdb_id.startswith("tt"):
+        return jsonify({"streams": []})
 
-    tmdb_id = get_tmdb_id(imdb_id)
+    tmdb_id = get_tmdb_id(imdb_id, kind)
     if not tmdb_id:
+        return jsonify({"streams": []})
+
+    if kind in ("series", "tv") and (not season or not episode):
+        _, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+        if not season and hint_season is not None:
+            season = str(hint_season)
+        if not episode and hint_episode is not None:
+            episode = str(hint_episode)
+
+    if kind in ("series", "tv") and (not season or not episode):
         return jsonify({"streams": []})
 
     decryption_key = get_decryption_key()
