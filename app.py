@@ -566,6 +566,7 @@ def fetch_aniways_streams(anime_id, episode_num):
                 if isinstance(direct_url, str) and direct_url:
                     candidate_urls.append(direct_url)
 
+                proxy_headers_from_hls = {}
                 if isinstance(source_obj, dict):
                     source_hls = source_obj.get("hls") or source_obj.get("url")
                     if isinstance(source_hls, str) and source_hls:
@@ -573,7 +574,8 @@ def fetch_aniways_streams(anime_id, episode_num):
 
                     proxy_hls = source_obj.get("proxyHls")
                     if isinstance(proxy_hls, str) and proxy_hls:
-                        request_headers.update(extract_headers_from_proxy(proxy_hls))
+                        proxy_headers_from_hls = extract_headers_from_proxy(proxy_hls)
+                        request_headers.update(proxy_headers_from_hls)
                         if proxy_hls.startswith("/"):
                             candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
                             candidate_urls.append(f"{ANIWAYS_API_BASE}{proxy_hls}")
@@ -622,6 +624,10 @@ def fetch_aniways_streams(anime_id, episode_num):
                     stream_request_headers = dict(request_headers)
                     if _is_megaplay_url(stream_url):
                         stream_request_headers["User-Agent"] = COMMON_HEADERS["User-Agent"]
+                        if proxy_headers_from_hls.get("Referer"):
+                            stream_request_headers["Referer"] = proxy_headers_from_hls["Referer"]
+                        if proxy_headers_from_hls.get("Origin"):
+                            stream_request_headers["Origin"] = proxy_headers_from_hls["Origin"]
 
                     stream_obj = {
                         "name": f"Aniways - {server_name or 'Server'}",
