@@ -11,14 +11,18 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.35",
+    "version": "1.1.0",
     "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee, AutoEmbed, VixSrc, Aniways, and Kitsu IDs.",
+    "description": "Stream movies, series, and anime with provider controls and Wyzie subtitle integration.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "aniways", "kitsu"],
+    "idPrefixes": ["tt", "tmdb", "aniways", "kitsu"],
     "catalogs": [],
+    "behaviorHints": {
+        "configurable": True,
+        "configurationRequired": False,
+    },
 }
 
 SERVERS = [
@@ -63,6 +67,15 @@ ANIWAYS_COMMON_HEADERS = {
     "Origin": "https://aniways.xyz",
 }
 KITSU_API_BASE = "https://kitsu.io/api/edge"
+WYZIE_API_BASE = "https://sub.wyzie.ru"
+WYZIE_COMMON_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": f"{WYZIE_API_BASE}/",
+    "Origin": WYZIE_API_BASE,
+}
+
+PROVIDER_CACHE_TTL = int(os.environ.get("PROVIDER_CACHE_TTL", "45"))
+PROVIDER_CACHE_MAXSIZE = int(os.environ.get("PROVIDER_CACHE_MAXSIZE", "2048"))
 
 LANG_MAP = {
     "English": "eng",

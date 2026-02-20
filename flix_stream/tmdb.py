@@ -1,4 +1,5 @@
 import logging
+import re
 from functools import lru_cache
 
 import requests
@@ -117,3 +118,77 @@ def get_series_context_from_imdb(imdb_id):
         logger.error("TMDB series context lookup failed for %s: %s", imdb_id, exc)
 
     return None, None, None
+
+
+def _normalize_title_token(value):
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+@lru_cache(maxsize=4096)
+def search_tmdb_id_by_title(title, content_type_hint=None, year=None):
+    """Resolve TMDB id from a title using TMDB search endpoints."""
+    raw_title = str(title or "").strip()
+    if len(raw_title) < 2:
+        return None, None
+
+    hint = str(content_type_hint or "").lower().strip()
+    if hint in ("movie", "film"):
+        search_order = ["movie", "tv"]
+    elif hint in ("series", "tv", "show"):
+        search_order = ["tv", "movie"]
+    else:
+        search_order = ["tv", "movie"]
+
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    title_token = _normalize_title_token(raw_title)
+
+    for media_type in search_order:
+        params = {"query": raw_title, "include_adult": "false"}
+        if year:
+            if media_type == "movie":
+                params["year"] = str(year)
+            else:
+                params["first_air_date_year"] = str(year)
+
+        try:
+            response = requests.get(
+                f"https://api.themoviedb.org/3/search/{media_type}",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+            results = payload.get("results") if isinstance(payload, dict) else []
+            if not isinstance(results, list) or not results:
+                continue
+
+            best = None
+            best_score = None
+            for item in results[:10]:
+                if not isinstance(item, dict):
+                    continue
+                name_candidates = [
+                    item.get("title"),
+                    item.get("name"),
+                    item.get("original_title"),
+                    item.get("original_name"),
+                ]
+                exact_match = any(
+                    _normalize_title_token(candidate) == title_token
+                    for candidate in name_candidates
+                    if candidate
+                )
+                popularity = float(item.get("popularity") or 0.0)
+                score = (1000.0 if exact_match else 0.0) + popularity
+                if best_score is None or score > best_score:
+                    best = item
+                    best_score = score
+
+            if best and best.get("id"):
+                return int(best["id"]), media_type
+        except Exception as exc:
+            logger.error("TMDB title search failed for '%s' (%s): %s", raw_title, media_type, exc)
+
+    return None, None

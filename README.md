@@ -7,16 +7,20 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
 - Supports `movie` and `series`.
 - Accepts Stremio IDs with IMDb prefix (`tt...`).
 - Converts IMDb -> TMDB before provider API calls.
+- Supports tokenized Stremio configuration URLs (`/<configToken>/manifest.json`).
 - Fetches streams from:
   - VidZee (`player.vidzee.wtf`)
   - AutoEmbed (`test.autoembed.cc`)
   - VixSrc (`vixsrc.to`)
   - Aniways (`api.aniways.xyz`) with direct Aniways and Kitsu ID support
-- Returns subtitles when available.
+- Merges subtitles from:
+  - Upstream provider tracks
+  - Wyzie Subs API (`sub.wyzie.ru`) with configurable language/source/format filters
 
 ## Current ID Behavior
 
 - Manifest `idPrefixes`: `["tt", "aniways", "kitsu"]`
+- Also supports `tmdb:<id>` IDs.
 - Movie input: `tt1234567`
 - Series input: `tt1234567:season:episode`
 - Aniways direct input: `aniways:<anime_id>:<episode>` (or `aniways:<anime_id>:<season>:<episode>`)
@@ -32,6 +36,7 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
    - `python app.py`
 3. Open configure page:
    - `http://127.0.0.1:7000/configure`
+4. Pick provider/Wyzie settings, then install the generated manifest URL into Stremio.
 
 Default port is `7000` (can be changed with `PORT` env var).
 
@@ -44,4 +49,4 @@ Default port is `7000` (can be changed with `PORT` env var).
 
 - Upstream providers can change behavior at any time.
 - Some HLS links require proxy headers; the addon sets Stremio `behaviorHints` where needed.
-- After any manifest/version change, remove and reinstall the addon in Stremio to refresh cache.
+- After changing configuration, reinstall addon in Stremio to refresh cache.

@@ -7,9 +7,12 @@ import requests
 from flix_stream.config import (
     AUTOEMBED_COMMON_HEADERS,
     COMMON_HEADERS,
+    PROVIDER_CACHE_MAXSIZE,
+    PROVIDER_CACHE_TTL,
     VIXSRC_BASE_URL,
     VIXSRC_COMMON_HEADERS,
 )
+from flix_stream.cache import ttl_cache
 from flix_stream.crypto import decrypt_autoembed_response, decrypt_link
 from flix_stream.subtitles import parse_subtitles
 
@@ -25,6 +28,7 @@ def needs_stremio_proxy(decrypted_url):
     return True
 
 
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
 def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     """Worker function to fetch streams from a specific server."""
     sr = sr_info["id"]
@@ -73,6 +77,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
     return streams
 
 
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
 def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
     """Fetch streams from AutoEmbed API for one server."""
     sr = sr_info["id"]
@@ -209,6 +214,7 @@ def extract_vixsrc_playlist_url(html_text):
     return f"{base_url}{separator}{urlencode(params)}"
 
 
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
 def fetch_vixsrc_streams(tmdb_id, content_type, season, episode):
     """Fetch stream links from VixSrc by decoding window.masterPlaylist from the embed page."""
     media_type = "tv" if str(content_type or "").lower() in ("series", "tv") else "movie"

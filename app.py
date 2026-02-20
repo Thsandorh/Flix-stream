@@ -4,72 +4,178 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, render_template, request
 
 from flix_stream.anime import (
-    decode_b64_loose as _decode_b64_loose,
-    extract_aniways_proxy_hls_details as _extract_aniways_proxy_hls_details,
-    fetch_aniways_search_page as _fetch_aniways_search_page,
     fetch_aniways_streams,
+    get_aniways_anime_context,
     get_kitsu_anime_context,
-    is_aniways_api_proxy_url as _is_aniways_api_proxy_url,
-    is_likely_aniways_stream_url as _is_likely_aniways_stream_url,
-    normalize_title_for_match as _normalize_title_for_match,
     resolve_aniways_id_from_kitsu,
 )
-from flix_stream.config import (
-    ANIWAYS_API_BASE,
-    ANIWAYS_COMMON_HEADERS,
-    AUTOEMBED_COMMON_HEADERS,
-    AUTOEMBED_SERVERS,
-    COMMON_HEADERS,
-    KITSU_API_BASE,
-    LANG_MAP,
-    MANIFEST,
-    MASTER_KEY,
-    SERVERS,
-    TMDB_TOKEN,
-    VIXSRC_BASE_URL,
-    VIXSRC_COMMON_HEADERS,
-)
-from flix_stream.crypto import (
-    _KEY_CACHE,
-    decrypt_autoembed_response,
-    decrypt_link,
-    get_decryption_key,
-)
-from flix_stream.ids import (
-    decode_stream_id as _decode_stream_id,
-    normalize_episode_part as _normalize_episode_part,
-    provider_rank,
-)
+from flix_stream.config import AUTOEMBED_SERVERS, MANIFEST, SERVERS
+from flix_stream.crypto import get_decryption_key
+from flix_stream.ids import decode_stream_id, normalize_episode_part, provider_rank
 from flix_stream.providers import (
-    extract_braced_js_object as _extract_braced_js_object,
-    extract_vixsrc_playlist_url as _extract_vixsrc_playlist_url,
     fetch_autoembed_server_streams,
     fetch_server_streams,
     fetch_vixsrc_streams,
-    needs_stremio_proxy as _needs_stremio_proxy,
 )
-from flix_stream.subtitles import parse_subtitles
-from flix_stream.tmdb import (
-    get_series_context_from_imdb,
-    get_tmdb_id,
-    get_tmdb_id_from_cinemeta,
+from flix_stream.runtime_config import (
+    DEFAULT_ADDON_CONFIG,
+    decode_addon_config_token,
+    encode_addon_config,
+    normalize_addon_config,
 )
+from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
+from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 
 app = Flask(__name__)
 
 
-@app.after_request
-def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "*")
-    response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-    return response
+def _support_stream():
+    return {
+        "name": "Flix-Streams",
+        "title": "Support development on Ko-fi",
+        "externalUrl": "https://ko-fi.com/sandortoth",
+    }
+
+
+def _attach_subtitles(streams, subtitles):
+    if not subtitles:
+        return streams
+    for stream_obj in streams:
+        if not isinstance(stream_obj, dict) or not stream_obj.get("url"):
+            continue
+        stream_obj["subtitles"] = merge_subtitles(stream_obj.get("subtitles"), subtitles)
+    return streams
+
+
+def _resolve_tmdb_for_anime(source_prefix, source_id, anime_id):
+    if source_prefix == "kitsu":
+        ctx = get_kitsu_anime_context(source_id)
+        title_candidates = (ctx.get("titles") or [])[:6]
+        hint = "series"
+        year = None
+    else:
+        ctx = get_aniways_anime_context(anime_id)
+        title_candidates = (ctx.get("titles") or [])[:6]
+        media_type = str(ctx.get("media_type") or "").lower()
+        hint = "movie" if media_type == "movie" else "series"
+        year = ctx.get("season_year")
+
+    for title in title_candidates:
+        tmdb_id, tmdb_kind = search_tmdb_id_by_title(title, hint, year)
+        if tmdb_id:
+            return tmdb_id, tmdb_kind
+
+    # Fallback without type hint for ambiguous titles.
+    for title in title_candidates[:3]:
+        tmdb_id, tmdb_kind = search_tmdb_id_by_title(title, None, year)
+        if tmdb_id:
+            return tmdb_id, tmdb_kind
+
+    return None, None
+
+
+def _build_manifest(addon_config):
+    manifest_data = dict(MANIFEST)
+    logo = manifest_data.get("logo")
+    if isinstance(logo, str) and logo.startswith("/"):
+        base = request.url_root.rstrip("/")
+        manifest_data["logo"] = f"{base}{logo}"
+
+    provider_labels = []
+    if addon_config.get("enable_vidzee"):
+        provider_labels.append("VidZee")
+    if addon_config.get("enable_autoembed"):
+        provider_labels.append("AutoEmbed")
+    if addon_config.get("enable_vixsrc"):
+        provider_labels.append("VixSrc")
+    if addon_config.get("enable_aniways"):
+        provider_labels.append("Aniways")
+    providers_text = ", ".join(provider_labels) if provider_labels else "none"
+
+    subtitle_state = "enabled" if addon_config.get("enable_wyzie") else "disabled"
+    manifest_data["description"] = (
+        f"{MANIFEST.get('description', '')} Providers: {providers_text}. Wyzie subtitles: {subtitle_state}."
+    )
+    return manifest_data
+
+
+def _fetch_wyzie_for_regular_content(tmdb_id, kind, season, episode, addon_config):
+    if not addon_config.get("enable_wyzie"):
+        return []
+    wyzie_season = season if kind in ("series", "tv") else None
+    wyzie_episode = episode if kind in ("series", "tv") else None
+    return fetch_wyzie_subtitles(tmdb_id, wyzie_season, wyzie_episode, addon_config)
+
+
+def _fetch_wyzie_for_anime_ids(source_prefix, source_id, anime_id, season, episode, addon_config):
+    if not addon_config.get("enable_wyzie"):
+        return []
+    if not addon_config.get("wyzie_apply_to_aniways_ids"):
+        return []
+
+    tmdb_id, tmdb_kind = _resolve_tmdb_for_anime(source_prefix, source_id, anime_id)
+    if not tmdb_id:
+        return []
+
+    wyzie_season = None
+    wyzie_episode = None
+    if tmdb_kind == "tv" and episode:
+        wyzie_season = season or "1"
+        wyzie_episode = episode
+
+    return fetch_wyzie_subtitles(tmdb_id, wyzie_season, wyzie_episode, addon_config)
+
+
+def _fetch_provider_streams(tmdb_id, kind, season, episode, addon_config):
+    all_streams = []
+
+    def _fetch_vidzee_streams():
+        decryption_key = get_decryption_key()
+        if not decryption_key:
+            app.logger.warning("VidZee decryption key unavailable; skipping VidZee provider")
+            return []
+
+        streams = []
+        with ThreadPoolExecutor(max_workers=min(10, len(SERVERS) or 1)) as executor:
+            for res in executor.map(
+                lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
+                SERVERS,
+            ):
+                streams.extend(res)
+        return streams
+
+    def _fetch_autoembed_streams():
+        streams = []
+        with ThreadPoolExecutor(max_workers=min(6, len(AUTOEMBED_SERVERS) or 1)) as executor:
+            for res in executor.map(
+                lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode),
+                AUTOEMBED_SERVERS,
+            ):
+                streams.extend(res)
+        return streams
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = []
+        if addon_config.get("enable_vidzee"):
+            futures.append(executor.submit(_fetch_vidzee_streams))
+        if addon_config.get("enable_autoembed"):
+            futures.append(executor.submit(_fetch_autoembed_streams))
+        if addon_config.get("enable_vixsrc"):
+            futures.append(executor.submit(fetch_vixsrc_streams, tmdb_id, kind, season, episode))
+
+        for future in futures:
+            try:
+                all_streams.extend(future.result())
+            except Exception as exc:
+                app.logger.error("Provider fetch failed: %s", exc)
+
+    return all_streams
 
 
 def parse_stream_id(content_type, raw_id):
     """Parse Stremio content ids into a provider id + optional season/episode."""
-    decoded_id = _decode_stream_id(raw_id)
+    decoded_id = decode_stream_id(raw_id)
     parts = [p for p in decoded_id.split(":") if p]
     kind = (content_type or "").lower()
 
@@ -83,13 +189,13 @@ def parse_stream_id(content_type, raw_id):
             content_id = int(parts[1])
         except Exception:
             return None, None, None
-        season = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
-        episode = _normalize_episode_part(parts[3] if len(parts) > 3 else None)
+        season = normalize_episode_part(parts[2] if len(parts) > 2 else None)
+        episode = normalize_episode_part(parts[3] if len(parts) > 3 else None)
         return content_id, season, episode
 
     imdb_id = parts[0]
-    season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
-    episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+    season = normalize_episode_part(parts[1] if len(parts) > 1 else None)
+    episode = normalize_episode_part(parts[2] if len(parts) > 2 else None)
     if not imdb_id.startswith("tt"):
         return None, season, episode
 
@@ -97,39 +203,70 @@ def parse_stream_id(content_type, raw_id):
     return content_id, season, episode
 
 
+@app.after_request
+def after_request(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+    return response
+
+
+def _render_config_page(config_token=None):
+    if config_token:
+        initial_config = decode_addon_config_token(config_token)
+    else:
+        initial_config = normalize_addon_config(DEFAULT_ADDON_CONFIG)
+    normalized_config = normalize_addon_config(initial_config)
+    canonical_token = encode_addon_config(normalized_config)
+
+    return render_template(
+        "index.html",
+        default_config=normalize_addon_config(DEFAULT_ADDON_CONFIG),
+        initial_config=normalized_config,
+        config_token=canonical_token,
+        base_url=request.url_root.rstrip("/"),
+    )
+
+
 @app.route("/")
 @app.route("/configure")
 def index():
-    return render_template("index.html")
+    return _render_config_page()
+
+
+@app.route("/<config_token>/configure")
+def configured_index(config_token):
+    return _render_config_page(config_token)
 
 
 @app.route("/manifest.json")
 def manifest():
-    manifest_data = dict(MANIFEST)
-    logo = manifest_data.get("logo")
-    if isinstance(logo, str) and logo.startswith("/"):
-        base = request.url_root.rstrip("/")
-        manifest_data["logo"] = f"{base}{logo}"
-    return jsonify(manifest_data)
+    return jsonify(_build_manifest(normalize_addon_config(DEFAULT_ADDON_CONFIG)))
 
 
-@app.route("/stream/<type>/<path:id>.json")
-def stream(type, id):
-    # Stremio format: tt1234567[:season:episode] (may be URL-encoded).
-    decoded_id = _decode_stream_id(id)
+@app.route("/<config_token>/manifest.json")
+def manifest_with_config(config_token):
+    addon_config = decode_addon_config_token(config_token)
+    return jsonify(_build_manifest(addon_config))
+
+
+def _stream_response(content_type, raw_id, addon_config):
+    decoded_id = decode_stream_id(raw_id)
     parts = [p for p in decoded_id.split(":") if p]
-    imdb_id = parts[0] if parts else ""
-    kind = (type or "").lower()
-    season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
-    episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+    kind = (content_type or "").lower()
+    prefix = (parts[0] if parts else "").lower()
 
-    if imdb_id.lower() in ("aniways", "kitsu"):
-        source_prefix = imdb_id.lower()
+    if prefix in ("aniways", "kitsu"):
+        if not addon_config.get("enable_aniways"):
+            return jsonify({"streams": []})
+
+        source_prefix = prefix
         source_id = parts[1] if len(parts) > 1 else None
+        season = normalize_episode_part(parts[2] if len(parts) > 3 else None)
         if len(parts) > 3:
-            aniways_episode = _normalize_episode_part(parts[3])
+            aniways_episode = normalize_episode_part(parts[3])
         else:
-            aniways_episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+            aniways_episode = normalize_episode_part(parts[2] if len(parts) > 2 else None)
 
         if not source_id or not aniways_episode:
             return jsonify({"streams": []})
@@ -142,75 +279,81 @@ def stream(type, id):
             return jsonify({"streams": []})
 
         aniways_streams = fetch_aniways_streams(anime_id, aniways_episode)
-        aniways_streams.sort(key=lambda s: (str(s.get("name", "")), str(s.get("title", ""))))
-        aniways_streams.append(
-            {
-                "name": "Flix-Streams",
-                "title": "Support development on Ko-fi",
-                "externalUrl": "https://ko-fi.com/sandortoth",
-            }
+        wyzie_subtitles = _fetch_wyzie_for_anime_ids(
+            source_prefix,
+            source_id,
+            anime_id,
+            season,
+            aniways_episode,
+            addon_config,
         )
+        _attach_subtitles(aniways_streams, wyzie_subtitles)
+        aniways_streams.sort(key=lambda s: (str(s.get("name", "")), str(s.get("title", ""))))
+        aniways_streams.append(_support_stream())
         return jsonify({"streams": aniways_streams})
 
-    if not imdb_id.startswith("tt"):
-        return jsonify({"streams": []})
-
-    tmdb_id = get_tmdb_id(imdb_id, kind)
+    tmdb_id, season, episode = parse_stream_id(content_type, raw_id)
     if not tmdb_id:
         return jsonify({"streams": []})
 
     if kind in ("series", "tv") and (not season or not episode):
-        _, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
-        if not season and hint_season is not None:
-            season = str(hint_season)
-        if not episode and hint_episode is not None:
-            episode = str(hint_episode)
+        raw_imdb = parts[0] if parts else ""
+        if raw_imdb.startswith("tt"):
+            _, hint_season, hint_episode = get_series_context_from_imdb(raw_imdb)
+            if not season and hint_season is not None:
+                season = str(hint_season)
+            if not episode and hint_episode is not None:
+                episode = str(hint_episode)
 
     if kind in ("series", "tv") and (not season or not episode):
         return jsonify({"streams": []})
 
-    all_streams = []
-    decryption_key = get_decryption_key()
-    if decryption_key:
-        # VidZee provider.
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            results = executor.map(
-                lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
-                SERVERS,
-            )
-            for res in results:
-                all_streams.extend(res)
-    else:
-        app.logger.warning("VidZee decryption key unavailable; skipping VidZee provider")
-
-    # AutoEmbed provider.
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        results = executor.map(
-            lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode),
-            AUTOEMBED_SERVERS,
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        provider_future = executor.submit(
+            _fetch_provider_streams,
+            tmdb_id,
+            kind,
+            season,
+            episode,
+            addon_config,
         )
-        for res in results:
-            all_streams.extend(res)
+        wyzie_future = executor.submit(
+            _fetch_wyzie_for_regular_content,
+            tmdb_id,
+            kind,
+            season,
+            episode,
+            addon_config,
+        )
+        try:
+            all_streams = provider_future.result()
+        except Exception as exc:
+            app.logger.error("Provider fetch group failed: %s", exc)
+            all_streams = []
+        try:
+            wyzie_subtitles = wyzie_future.result()
+        except Exception as exc:
+            app.logger.error("Wyzie fetch failed: %s", exc)
+            wyzie_subtitles = []
 
-    # VixSrc provider.
-    all_streams.extend(fetch_vixsrc_streams(tmdb_id, kind, season, episode))
+    _attach_subtitles(all_streams, wyzie_subtitles)
 
-    # Keep provider groups stable in the list.
     all_streams.sort(key=lambda s: (provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
-
-    # Keep a clickable support link as the final item in the stream list.
-    all_streams.append(
-        {
-            "name": "Flix-Streams",
-            "title": "Support development on Ko-fi",
-            "externalUrl": "https://ko-fi.com/sandortoth",
-        }
-    )
-
+    all_streams.append(_support_stream())
     return jsonify({"streams": all_streams})
 
 
+@app.route("/stream/<type>/<path:id>.json")
+def stream(type, id):
+    return _stream_response(type, id, normalize_addon_config(DEFAULT_ADDON_CONFIG))
+
+
+@app.route("/<config_token>/stream/<type>/<path:id>.json")
+def stream_with_config(config_token, type, id):
+    addon_config = decode_addon_config_token(config_token)
+    return _stream_response(type, id, addon_config)
+
+
 if __name__ == "__main__":
-    # Use environment variable for port, default to 7000.
     port = int(os.environ.get("PORT", 7000))
     app.run(host="0.0.0.0", port=port)

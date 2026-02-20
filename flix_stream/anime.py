@@ -1,11 +1,20 @@
 import base64
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import requests
 
-from flix_stream.config import ANIWAYS_API_BASE, ANIWAYS_COMMON_HEADERS, COMMON_HEADERS, KITSU_API_BASE
+from flix_stream.cache import ttl_cache
+from flix_stream.config import (
+    ANIWAYS_API_BASE,
+    ANIWAYS_COMMON_HEADERS,
+    COMMON_HEADERS,
+    KITSU_API_BASE,
+    PROVIDER_CACHE_MAXSIZE,
+    PROVIDER_CACHE_TTL,
+)
 
 
 def decode_b64_loose(token):
@@ -96,6 +105,7 @@ def is_aniways_api_proxy_url(url):
     )
 
 
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
 def fetch_aniways_streams(anime_id, episode_num):
     """Fetch stream links from Aniways for a specific anime and episode number."""
     try:
@@ -124,13 +134,14 @@ def fetch_aniways_streams(anime_id, episode_num):
             return []
 
         servers = response_server.json()
-        streams = []
-        for srv in servers:
+
+        def _fetch_server_streams(srv):
+            streams = []
             server_id = srv.get("serverId")
             server_name = srv.get("serverName")
             server_type = srv.get("type")
             if not server_id:
-                continue
+                return streams
 
             stream_api_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/servers/{server_id}"
 
@@ -274,8 +285,13 @@ def fetch_aniways_streams(anime_id, episode_num):
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
             except Exception:
-                continue
+                return []
+            return streams
 
+        streams = []
+        with ThreadPoolExecutor(max_workers=min(8, len(servers) or 1)) as executor:
+            for server_streams in executor.map(_fetch_server_streams, servers):
+                streams.extend(server_streams)
         return streams
     except Exception:
         return []
@@ -294,56 +310,60 @@ def get_kitsu_anime_context(kitsu_id):
     mal_id = None
     anilist_id = None
 
+    headers = {"User-Agent": COMMON_HEADERS["User-Agent"]}
+    anime_url = f"{KITSU_API_BASE}/anime/{kitsu_id}"
+    mappings_url = f"{KITSU_API_BASE}/anime/{kitsu_id}/mappings"
+
+    def _fetch_json(url):
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                return None
+            return response.json()
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        anime_payload, mappings_payload = executor.map(_fetch_json, [anime_url, mappings_url])
+
     try:
-        anime_url = f"{KITSU_API_BASE}/anime/{kitsu_id}"
-        response_anime = requests.get(
-            anime_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10
-        )
-        if response_anime.status_code == 200:
-            payload = response_anime.json()
-            data = payload.get("data") if isinstance(payload, dict) else None
-            attrs = data.get("attributes") if isinstance(data, dict) else None
-            if isinstance(attrs, dict):
-                canonical = attrs.get("canonicalTitle")
-                if canonical:
-                    titles.append(canonical)
-                title_map = attrs.get("titles")
-                if isinstance(title_map, dict):
-                    for val in title_map.values():
-                        if val:
-                            titles.append(val)
-                abbreviated = attrs.get("abbreviatedTitles")
-                if isinstance(abbreviated, list):
-                    for val in abbreviated:
-                        if val:
-                            titles.append(val)
+        data = anime_payload.get("data") if isinstance(anime_payload, dict) else None
+        attrs = data.get("attributes") if isinstance(data, dict) else None
+        if isinstance(attrs, dict):
+            canonical = attrs.get("canonicalTitle")
+            if canonical:
+                titles.append(canonical)
+            title_map = attrs.get("titles")
+            if isinstance(title_map, dict):
+                for val in title_map.values():
+                    if val:
+                        titles.append(val)
+            abbreviated = attrs.get("abbreviatedTitles")
+            if isinstance(abbreviated, list):
+                for val in abbreviated:
+                    if val:
+                        titles.append(val)
     except Exception:
         pass
 
     try:
-        mappings_url = f"{KITSU_API_BASE}/anime/{kitsu_id}/mappings"
-        response_mapping = requests.get(
-            mappings_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10
-        )
-        if response_mapping.status_code == 200:
-            payload = response_mapping.json()
-            data = payload.get("data") if isinstance(payload, dict) else []
-            if isinstance(data, list):
-                for mapping in data:
-                    attrs = mapping.get("attributes") if isinstance(mapping, dict) else None
-                    if not isinstance(attrs, dict):
-                        continue
-                    site = str(attrs.get("externalSite") or "").lower()
-                    ext_raw = attrs.get("externalId")
-                    try:
-                        ext_id = int(ext_raw)
-                    except Exception:
-                        continue
+        data = mappings_payload.get("data") if isinstance(mappings_payload, dict) else []
+        if isinstance(data, list):
+            for mapping in data:
+                attrs = mapping.get("attributes") if isinstance(mapping, dict) else None
+                if not isinstance(attrs, dict):
+                    continue
+                site = str(attrs.get("externalSite") or "").lower()
+                ext_raw = attrs.get("externalId")
+                try:
+                    ext_id = int(ext_raw)
+                except Exception:
+                    continue
 
-                    if site == "myanimelist/anime" and mal_id is None:
-                        mal_id = ext_id
-                    elif site == "anilist/anime" and anilist_id is None:
-                        anilist_id = ext_id
+                if site == "myanimelist/anime" and mal_id is None:
+                    mal_id = ext_id
+                elif site == "anilist/anime" and anilist_id is None:
+                    anilist_id = ext_id
     except Exception:
         pass
 
@@ -361,6 +381,7 @@ def get_kitsu_anime_context(kitsu_id):
     return {"titles": unique_titles, "mal_id": mal_id, "anilist_id": anilist_id}
 
 
+@lru_cache(maxsize=2048)
 def fetch_aniways_search_page(query, page=1, items_per_page=20):
     params = {"q": query, "page": page, "itemsPerPage": items_per_page}
     try:
@@ -380,6 +401,54 @@ def fetch_aniways_search_page(query, page=1, items_per_page=20):
 
 
 @lru_cache(maxsize=1024)
+def get_aniways_anime_context(anime_id):
+    """Fetch Aniways metadata for subtitle/ID enrichment flows."""
+    titles = []
+    media_type = None
+    season_year = None
+
+    try:
+        response = requests.get(
+            f"{ANIWAYS_API_BASE}/anime/{anime_id}",
+            headers=ANIWAYS_COMMON_HEADERS,
+            timeout=10,
+        )
+        if response.status_code == 200:
+            payload = response.json()
+            if isinstance(payload, dict):
+                for key in ("ename", "jname"):
+                    value = str(payload.get(key) or "").strip()
+                    if value:
+                        titles.append(value)
+
+                metadata = payload.get("metadata")
+                if isinstance(metadata, dict):
+                    media_type = str(metadata.get("mediaType") or "").strip().lower() or None
+                    year_raw = metadata.get("seasonYear")
+                    try:
+                        season_year = int(year_raw) if year_raw is not None else None
+                    except Exception:
+                        season_year = None
+    except Exception:
+        pass
+
+    unique_titles = []
+    seen = set()
+    for title in titles:
+        lowered = title.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        unique_titles.append(title)
+
+    return {
+        "titles": unique_titles,
+        "media_type": media_type,
+        "season_year": season_year,
+    }
+
+
+@lru_cache(maxsize=1024)
 def resolve_aniways_id_from_kitsu(kitsu_id):
     """Resolve Aniways anime id from a Kitsu anime id using mappings + title search."""
     ctx = get_kitsu_anime_context(kitsu_id)
@@ -389,9 +458,28 @@ def resolve_aniways_id_from_kitsu(kitsu_id):
     if not titles:
         return None
 
+    primary_titles = titles[:6]
+    secondary_titles = titles[:4]
+    ordered_queries = []
+    seen_queries = set()
+    for title in primary_titles + secondary_titles:
+        token = str(title or "").strip()
+        if not token or token in seen_queries:
+            continue
+        seen_queries.add(token)
+        ordered_queries.append(token)
+
+    search_results = {}
+    with ThreadPoolExecutor(max_workers=min(6, len(ordered_queries) or 1)) as executor:
+        for title, items in zip(
+            ordered_queries,
+            executor.map(lambda q: fetch_aniways_search_page(q, page=1, items_per_page=20), ordered_queries),
+        ):
+            search_results[title] = items
+
     # First pass: exact external-id match (most reliable).
-    for title in titles[:6]:
-        items = fetch_aniways_search_page(title, page=1, items_per_page=20)
+    for title in primary_titles:
+        items = search_results.get(str(title).strip(), [])
         for item in items:
             item_mal = item.get("malId")
             item_anilist = item.get("anilistId")
@@ -402,8 +490,8 @@ def resolve_aniways_id_from_kitsu(kitsu_id):
 
     # Second pass: title similarity fallback.
     normalized_titles = {normalize_title_for_match(title) for title in titles if title}
-    for title in titles[:4]:
-        items = fetch_aniways_search_page(title, page=1, items_per_page=20)
+    for title in secondary_titles:
+        items = search_results.get(str(title).strip(), [])
         for item in items:
             names = [item.get("ename"), item.get("jname")]
             for name in names:

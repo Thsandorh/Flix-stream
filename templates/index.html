@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flix-Streams</title>
+    <title>Flix-Streams Configure</title>
     <style>
         :root {
-            --bg-a: #081019;
-            --bg-b: #121a2a;
-            --panel: #121827;
+            --bg-a: #09121d;
+            --bg-b: #121a2c;
+            --panel: #121a2a;
             --panel-2: #0f1523;
             --text: #f4f7ff;
             --muted: #b7c2d9;
-            --line: #22304a;
+            --line: #253551;
             --primary: #2ec5a7;
             --primary-hover: #28b095;
-            --secondary: #2b7fff;
-            --secondary-hover: #226fe1;
+            --chip: #1a2740;
         }
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100vh;
@@ -29,288 +29,362 @@
                 linear-gradient(165deg, var(--bg-a), var(--bg-b));
         }
         .page {
-            max-width: 860px;
+            max-width: 920px;
             margin: 0 auto;
-            padding: 48px 18px 28px;
-        }
-        .hero {
-            margin-bottom: 20px;
+            padding: 36px 18px 24px;
         }
         h1 {
-            margin: 0 0 10px;
-            font-size: 40px;
-            letter-spacing: 0.2px;
+            margin: 0 0 8px;
+            font-size: 38px;
         }
-        p {
-            margin: 0;
-            color: var(--muted);
-        }
+        p { margin: 0; color: var(--muted); }
         .meta {
-            margin: 18px 0 22px;
+            margin: 16px 0 16px;
             background: linear-gradient(180deg, var(--panel), var(--panel-2));
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 16px 18px;
-            color: var(--muted);
+            padding: 16px;
             font-size: 14px;
             line-height: 1.5;
         }
-        .meta b { color: var(--text); }
-        .meta code {
-            background: #18223a;
-            border: 1px solid #2a3b60;
-            border-radius: 6px;
-            padding: 2px 5px;
-            color: #d4e0ff;
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
         }
-        .button-container {
+        .card {
+            background: linear-gradient(180deg, #111a2b, #0d1423);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .card h2 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            border: 1px solid #2f456d;
+            border-radius: 9px;
+            background: #132038;
+            color: var(--text);
+            padding: 10px 11px;
+            font-size: 14px;
+            outline: none;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #4a6ea9;
+        }
+        .check-list {
+            display: grid;
+            gap: 8px;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .check-item input { transform: translateY(1px); }
+        .hint {
+            font-size: 12px;
+            color: #9fb0ce;
+        }
+        .button-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 24px;
+            gap: 10px;
+            margin: 14px 0 12px;
         }
         button {
-            padding: 13px 20px;
-            font-size: 15px;
-            cursor: pointer;
-            border: none;
+            padding: 12px 16px;
             border-radius: 10px;
-            font-weight: bold;
-            transition: transform 0.2s, background-color 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            transition: transform 0.15s ease, background-color 0.15s ease;
         }
-        button:hover {
-            transform: translateY(-1px);
-        }
-        .install-btn {
-            background-color: var(--primary);
+        button:hover { transform: translateY(-1px); }
+        .install-btn { background: var(--primary); color: white; }
+        .install-btn:hover { background: var(--primary-hover); }
+        .secondary-btn {
+            background: #172540;
+            border: 1px solid #35517f;
             color: white;
         }
-        .install-btn:hover {
-            background-color: var(--primary-hover);
-        }
-        .copy-btn {
-            background-color: #18233a;
-            color: white;
-            border: 1px solid #31486f;
-        }
-        .copy-btn:hover {
-            background-color: #203050;
-        }
-        .community {
-            background: linear-gradient(180deg, #121a2a, #0e1523);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 18px;
-        }
-        .community h2 {
-            margin: 0 0 8px;
-            font-size: 22px;
-        }
-        .community p {
-            margin: 0 0 14px;
-            line-height: 1.45;
-        }
-        .social-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 10px;
-        }
-        .social-card {
-            display: block;
-            text-decoration: none;
-            border-radius: 12px;
-            border: 1px solid #2b3d60;
-            padding: 12px 14px;
-            color: var(--text);
-            background: #131d30;
-            transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
-        }
-        .social-card strong {
-            display: block;
-            font-size: 16px;
-            margin-bottom: 4px;
-        }
-        .social-card span {
-            color: var(--muted);
+        .secondary-btn:hover { background: #1d3154; }
+        .url-preview {
+            background: var(--chip);
+            border: 1px solid #2b3f63;
+            border-radius: 10px;
+            padding: 12px;
             font-size: 13px;
-        }
-        .social-card:hover {
-            transform: translateY(-2px);
-            border-color: #4b6ea8;
-            background: #16233b;
-        }
-        .social-card.discord {
-            border-color: #3c4f7f;
-        }
-        .social-card.kofi {
-            border-color: #41635f;
+            word-break: break-all;
+            color: #d8e4ff;
         }
         .toast {
             visibility: hidden;
-            min-width: 250px;
-            background-color: #333;
+            min-width: 230px;
+            background-color: #1d2638;
             color: #fff;
             text-align: center;
-            border-radius: 2px;
-            padding: 16px;
+            border-radius: 7px;
+            padding: 11px 13px;
             position: fixed;
-            z-index: 1;
-            bottom: 30px;
-            font-size: 17px;
+            right: 16px;
+            bottom: 18px;
+            border: 1px solid #3c527c;
         }
-        .toast.show {
-            visibility: visible;
-            -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
-            animation: fadein 0.5s, fadeout 0.5s 2.5s;
-        }
-        @-webkit-keyframes fadein {
-            from {bottom: 0; opacity: 0;}
-            to {bottom: 30px; opacity: 1;}
-        }
-        @keyframes fadein {
-            from {bottom: 0; opacity: 0;}
-            to {bottom: 30px; opacity: 1;}
-        }
-        @-webkit-keyframes fadeout {
-            from {bottom: 30px; opacity: 1;}
-            to {bottom: 0; opacity: 0;}
-        }
-        @keyframes fadeout {
-            from {bottom: 30px; opacity: 1;}
-            to {bottom: 0; opacity: 0;}
-        }
+        .toast.show { visibility: visible; }
         @media (max-width: 620px) {
-            .page { padding-top: 30px; }
-            h1 { font-size: 34px; }
-            .community h2 { font-size: 20px; }
+            .page { padding-top: 26px; }
+            h1 { font-size: 32px; }
         }
     </style>
 </head>
 <body>
     <div class="page">
-        <div class="hero">
-            <h1>Flix-Streams</h1>
-            <p id="subtitle">Stream movies and TV shows from multiple providers.</p>
-        </div>
+        <h1>Flix-Streams</h1>
+        <p id="subtitle">Configurable Stremio addon with Wyzie subtitle integration.</p>
 
-        <div class="meta" id="meta-box">
-            <div><b>Providers:</b> VidZee + AutoEmbed + Aniways</div>
-            <div><b>Supported types:</b> movie, series</div>
-            <div><b>ID format:</b> <code>tt...</code>, <code>tt...:season:episode</code>, <code>aniways:&lt;animeId&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;kitsuId&gt;:&lt;ep&gt;</code></div>
+        <div class="meta">
             <div><b>Version:</b> <span id="addon-version">loading...</span></div>
-            <div><b>Note:</b> after updates, remove + reinstall addon in Stremio to refresh manifest cache.</div>
+            <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code></div>
+            <div><b>Tip:</b> after changing settings, reinstall from the generated manifest URL.</div>
         </div>
 
-        <div class="button-container">
-            <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
-            <button id="copy-btn" class="copy-btn" onclick="copyManifest()">Copy Manifest URL</button>
+        <div class="grid">
+            <section class="card">
+                <h2>Providers</h2>
+                <div class="check-list">
+                    <label class="check-item"><input id="enable_vidzee" type="checkbox"> Enable VidZee</label>
+                    <label class="check-item"><input id="enable_autoembed" type="checkbox"> Enable AutoEmbed</label>
+                    <label class="check-item"><input id="enable_vixsrc" type="checkbox"> Enable VixSrc</label>
+                    <label class="check-item"><input id="enable_aniways" type="checkbox"> Enable Aniways/Kitsu IDs</label>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Wyzie Subtitles</h2>
+                <div class="check-list">
+                    <label class="check-item"><input id="enable_wyzie" type="checkbox"> Enable Wyzie subtitles</label>
+                    <label class="check-item"><input id="wyzie_hearing_impaired" type="checkbox"> Include hearing-impaired (HI)</label>
+                    <label class="check-item"><input id="wyzie_apply_to_aniways_ids" type="checkbox"> Try Wyzie on Aniways/Kitsu IDs</label>
+                </div>
+                <div class="field">
+                    <label for="wyzie_languages">Languages (comma separated)</label>
+                    <input id="wyzie_languages" type="text" placeholder="en,hu,ja">
+                </div>
+                <div class="field">
+                    <label for="wyzie_formats">Formats (comma separated)</label>
+                    <input id="wyzie_formats" type="text" placeholder="srt,ass">
+                </div>
+                <div class="field">
+                    <label for="wyzie_source">Source</label>
+                    <select id="wyzie_source">
+                        <option value="all">All</option>
+                        <option value="opensubtitles">OpenSubtitles</option>
+                        <option value="subdl">SubDL</option>
+                        <option value="subf2m">SubF2M</option>
+                        <option value="podnapisi">Podnapisi</option>
+                        <option value="gestdown">Gestdown</option>
+                        <option value="animetosho">AnimeTosho</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="wyzie_max_results">Max subtitles per stream (1-30)</label>
+                    <input id="wyzie_max_results" type="number" min="1" max="30" step="1">
+                </div>
+                <div class="hint">For anime-heavy setup, set source to <code>animetosho</code> and keep Aniways enabled.</div>
+            </section>
         </div>
 
-        <section class="community">
-            <h2>Community and Support</h2>
-            <p>Need help with setup, playback issues, or updates? Join the Discord community. If this addon helps you, you can support ongoing development on Ko-fi.</p>
-            <div class="social-grid">
-                <a class="social-card discord" href="https://discord.gg/AcgxK7f9" target="_blank" rel="noopener noreferrer">
-                    <strong>Join Discord</strong>
-                    <span>Support chat, status updates, and troubleshooting</span>
-                </a>
-                <a class="social-card kofi" href="https://ko-fi.com/sandortoth" target="_blank" rel="noopener noreferrer">
-                    <strong>Support on Ko-fi</strong>
-                    <span>Help fund maintenance and future improvements</span>
-                </a>
-            </div>
-        </section>
+        <div class="button-row">
+            <button class="install-btn" onclick="installAddon()">Install on Stremio</button>
+            <button class="secondary-btn" onclick="copyManifest()">Copy Manifest URL</button>
+            <button class="secondary-btn" onclick="resetToDefaults()">Reset Defaults</button>
+        </div>
+
+        <div class="url-preview" id="manifest-preview">Loading manifest URL...</div>
     </div>
 
-    <div id="toast" class="toast">Manifest URL copied to clipboard!</div>
+    <div id="toast" class="toast">Manifest URL copied.</div>
 
     <script>
-        async function loadManifestMeta() {
-            const manifestUrl = getManifestUrl();
-            try {
-                const res = await fetch(manifestUrl, { cache: 'no-store' });
-                if (!res.ok) return;
-                const data = await res.json();
-                const versionEl = document.getElementById('addon-version');
-                if (versionEl && data.version) {
-                    versionEl.textContent = data.version;
-                }
-                const subtitleEl = document.getElementById('subtitle');
-                if (subtitleEl && data.description) {
-                    subtitleEl.textContent = data.description;
-                }
-            } catch (e) {
-                console.error('Failed to load manifest metadata:', e);
-            }
+        const BASE_URL = {{ base_url|tojson }};
+        const DEFAULT_CONFIG = {{ default_config|tojson }};
+        const INITIAL_CONFIG = {{ initial_config|tojson }};
+
+        function splitCsv(value) {
+            return String(value || "")
+                .split(",")
+                .map((x) => x.trim().toLowerCase())
+                .filter((x, i, arr) => x && arr.indexOf(x) === i);
         }
 
-        function getManifestUrl() {
-            // Get the current URL and ensure we point to manifest.json correctly
-            // If the URL ends with 'configure', we strip it off.
-            // If it ends with a slash, we append manifest.json.
-            // If it's just the root domain with path, we append manifest.json relative to it.
-            let baseUrl = window.location.href;
-
-            // If we are at /configure, remove it
-            if (baseUrl.endsWith('/configure')) {
-                baseUrl = baseUrl.slice(0, -'/configure'.length);
+        function normalizeConfig(raw) {
+            const cfg = Object.assign({}, DEFAULT_CONFIG, raw || {});
+            cfg.enable_vidzee = !!cfg.enable_vidzee;
+            cfg.enable_autoembed = !!cfg.enable_autoembed;
+            cfg.enable_vixsrc = !!cfg.enable_vixsrc;
+            cfg.enable_aniways = !!cfg.enable_aniways;
+            cfg.enable_wyzie = !!cfg.enable_wyzie;
+            cfg.wyzie_hearing_impaired = !!cfg.wyzie_hearing_impaired;
+            cfg.wyzie_apply_to_aniways_ids = !!cfg.wyzie_apply_to_aniways_ids;
+            cfg.wyzie_languages = splitCsv(cfg.wyzie_languages).slice(0, 12);
+            cfg.wyzie_formats = splitCsv(cfg.wyzie_formats).slice(0, 8);
+            const allowedSources = ["all", "opensubtitles", "subdl", "subf2m", "podnapisi", "gestdown", "animetosho"];
+            if (!allowedSources.includes(cfg.wyzie_source)) {
+                cfg.wyzie_source = DEFAULT_CONFIG.wyzie_source;
             }
+            const max = parseInt(cfg.wyzie_max_results, 10);
+            cfg.wyzie_max_results = Number.isFinite(max) ? Math.min(30, Math.max(1, max)) : DEFAULT_CONFIG.wyzie_max_results;
+            if (!cfg.wyzie_languages.length) cfg.wyzie_languages = DEFAULT_CONFIG.wyzie_languages;
+            if (!cfg.wyzie_formats.length) cfg.wyzie_formats = DEFAULT_CONFIG.wyzie_formats;
+            return cfg;
+        }
 
-            // Remove trailing slash if present
-            if (baseUrl.endsWith('/')) {
-                baseUrl = baseUrl.slice(0, -1);
+        function getConfigFromForm() {
+            return normalizeConfig({
+                enable_vidzee: document.getElementById("enable_vidzee").checked,
+                enable_autoembed: document.getElementById("enable_autoembed").checked,
+                enable_vixsrc: document.getElementById("enable_vixsrc").checked,
+                enable_aniways: document.getElementById("enable_aniways").checked,
+                enable_wyzie: document.getElementById("enable_wyzie").checked,
+                wyzie_hearing_impaired: document.getElementById("wyzie_hearing_impaired").checked,
+                wyzie_apply_to_aniways_ids: document.getElementById("wyzie_apply_to_aniways_ids").checked,
+                wyzie_languages: document.getElementById("wyzie_languages").value,
+                wyzie_formats: document.getElementById("wyzie_formats").value,
+                wyzie_source: document.getElementById("wyzie_source").value,
+                wyzie_max_results: document.getElementById("wyzie_max_results").value,
+            });
+        }
+
+        function applyConfigToForm(config) {
+            const cfg = normalizeConfig(config);
+            document.getElementById("enable_vidzee").checked = cfg.enable_vidzee;
+            document.getElementById("enable_autoembed").checked = cfg.enable_autoembed;
+            document.getElementById("enable_vixsrc").checked = cfg.enable_vixsrc;
+            document.getElementById("enable_aniways").checked = cfg.enable_aniways;
+            document.getElementById("enable_wyzie").checked = cfg.enable_wyzie;
+            document.getElementById("wyzie_hearing_impaired").checked = cfg.wyzie_hearing_impaired;
+            document.getElementById("wyzie_apply_to_aniways_ids").checked = cfg.wyzie_apply_to_aniways_ids;
+            document.getElementById("wyzie_languages").value = cfg.wyzie_languages.join(",");
+            document.getElementById("wyzie_formats").value = cfg.wyzie_formats.join(",");
+            document.getElementById("wyzie_source").value = cfg.wyzie_source;
+            document.getElementById("wyzie_max_results").value = String(cfg.wyzie_max_results);
+        }
+
+        function toBase64Url(data) {
+            const bytes = new TextEncoder().encode(data);
+            let binary = "";
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
             }
+            return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+        }
 
-            return baseUrl + '/manifest.json';
+        function getManifestUrl(config = getConfigFromForm()) {
+            const token = toBase64Url(JSON.stringify(normalizeConfig(config)));
+            return `${BASE_URL}/${token}/manifest.json`;
+        }
+
+        function refreshPreviewAndMeta() {
+            const manifestUrl = getManifestUrl();
+            document.getElementById("manifest-preview").textContent = manifestUrl;
+            loadManifestMeta(manifestUrl);
+        }
+
+        async function loadManifestMeta(manifestUrl) {
+            try {
+                const res = await fetch(manifestUrl, { cache: "no-store" });
+                if (!res.ok) return;
+                const data = await res.json();
+                const versionEl = document.getElementById("addon-version");
+                const subtitleEl = document.getElementById("subtitle");
+                if (versionEl && data.version) versionEl.textContent = data.version;
+                if (subtitleEl && data.description) subtitleEl.textContent = data.description;
+            } catch (err) {
+                console.error("Manifest metadata load failed:", err);
+            }
         }
 
         function installAddon() {
             const manifestUrl = getManifestUrl();
-            const stremioUrl = manifestUrl.replace(/^https?:\/\//, 'stremio://');
-            window.location.href = stremioUrl;
+            window.location.href = manifestUrl.replace(/^https?:\/\//i, "stremio://");
         }
 
         function copyManifest() {
             const manifestUrl = getManifestUrl();
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(manifestUrl).then(() => {
-                    showToast();
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                    fallbackCopyTextToClipboard(manifestUrl);
-                });
+                navigator.clipboard.writeText(manifestUrl).then(showToast).catch(() => fallbackCopy(manifestUrl));
             } else {
-                fallbackCopyTextToClipboard(manifestUrl);
+                fallbackCopy(manifestUrl);
             }
         }
 
-        function fallbackCopyTextToClipboard(text) {
+        function fallbackCopy(text) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
             document.body.appendChild(textArea);
             textArea.select();
             try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    showToast();
-                } else {
-                    console.error('Fallback: Copy command failed');
-                    alert("Failed to copy URL manually: " + text);
-                }
-            } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
-                alert("Failed to copy URL manually: " + text);
+                document.execCommand("copy");
+                showToast();
+            } finally {
+                document.body.removeChild(textArea);
             }
-            document.body.removeChild(textArea);
         }
 
         function showToast() {
-            const x = document.getElementById("toast");
-            x.className = "toast show";
-            setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+            const toast = document.getElementById("toast");
+            toast.className = "toast show";
+            setTimeout(() => {
+                toast.className = "toast";
+            }, 2200);
         }
 
-        loadManifestMeta();
+        function resetToDefaults() {
+            applyConfigToForm(DEFAULT_CONFIG);
+            refreshPreviewAndMeta();
+        }
+
+        function bindAutoRefresh() {
+            const ids = [
+                "enable_vidzee",
+                "enable_autoembed",
+                "enable_vixsrc",
+                "enable_aniways",
+                "enable_wyzie",
+                "wyzie_hearing_impaired",
+                "wyzie_apply_to_aniways_ids",
+                "wyzie_languages",
+                "wyzie_formats",
+                "wyzie_source",
+                "wyzie_max_results",
+            ];
+            ids.forEach((id) => {
+                const el = document.getElementById(id);
+                const eventName = el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input";
+                el.addEventListener(eventName, refreshPreviewAndMeta);
+            });
+        }
+
+        applyConfigToForm(INITIAL_CONFIG);
+        bindAutoRefresh();
+        refreshPreviewAndMeta();
     </script>
 </body>
 </html>
