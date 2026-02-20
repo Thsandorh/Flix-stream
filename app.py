@@ -29,7 +29,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -195,6 +195,11 @@ def get_tmdb_id(imdb_id, content_type=None):
                 return tv_episode_results[0]["show_id"]
             if tv_season_show_id:
                 return tv_season_show_id
+            return None
+
+        if kind == "movie":
+            if movie_results:
+                return movie_results[0].get("id")
             return None
 
         if movie_results:
