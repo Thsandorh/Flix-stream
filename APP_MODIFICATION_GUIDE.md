@@ -1,6 +1,6 @@
 # Required Modifications for `app.py`
 
-To fully support Aniways streaming, you need to add logic to your main `app.py` file. This logic decodes the "unreadable" Base64 proxy headers (`proxyHls`) and provides Stremio with a clean `.m3u8` link plus the necessary authorization headers (`Referer`, `Origin`) required for playback.
+To fully support Aniways streaming, you need to add logic to your main `app.py` file. This logic decodes the "unreadable" Base64 proxy headers (`proxyHls`) and provides Stremio with a clean `.m3u8` link plus the necessary authorization headers (`Referer`, `Origin`, `User-Agent`) required for playback.
 
 **Goal:** The user will see a playable stream in Stremio. The "unreadable text" is processed internally and converted into valid HTTP headers.
 
@@ -21,7 +21,7 @@ import time
 Add these two functions to `app.py` (e.g., before `get_tmdb_id`).
 
 ### A. Header Decoder
-This function takes the "garbage" `proxyHls` string and extracts the clean headers.
+This function takes the "garbage" `proxyHls` string and extracts the clean headers. It also explicitly adds the User-Agent to ensure stricter servers (like Megaplay) accept the connection.
 
 ```python
 def extract_headers_from_proxy(proxy_url):
@@ -48,6 +48,11 @@ def extract_headers_from_proxy(proxy_url):
                     headers["Referer"] = headers_json["referer"]
                 if "origin" in headers_json:
                     headers["Origin"] = headers_json["origin"]
+
+                # IMPORTANT: Always ensure a valid User-Agent is present
+                # This is critical for servers like Megaplay/Rapid-Cloud
+                headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
                 return headers
     except Exception as e:
         app.logger.error(f"Error parsing proxy headers: {e}")
@@ -121,7 +126,7 @@ def fetch_aniways_stream(anime_id, episode_num):
                             "behaviorHints": {
                                 "notWebReady": True,
                                 "proxyHeaders": {
-                                    "request": stream_headers  # The DECODED headers
+                                    "request": stream_headers  # The DECODED headers (Referer, Origin, UA)
                                 }
                             }
                         })
