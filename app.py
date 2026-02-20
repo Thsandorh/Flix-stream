@@ -26,7 +26,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.19",
+    "version": "1.0.20",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -36,7 +36,6 @@ MANIFEST = {
 }
 
 SERVERS = [
-    {"id": "0", "name": "Nflix"},
     {"id": "1", "name": "Duke"},
     {"id": "2", "name": "Glory"},
     {"id": "4", "name": "Atlas"},
@@ -247,6 +246,13 @@ def _normalize_episode_part(value):
         return str(int(m.group(0)))
     return None
 
+def _needs_stremio_proxy(decrypted_url):
+    """Avoid double-proxying already wrapped upstream proxy URLs."""
+    lowered = str(decrypted_url or "").lower()
+    if "/proxy/m3u8/" in lowered or "/proxy/hls/" in lowered:
+        return False
+    return True
+
 def parse_subtitles(subtitle_list):
     """Parses VidZee subtitle list into Stremio format."""
     parsed = []
@@ -306,17 +312,22 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
             for u in data["url"]:
                 decrypted_url = decrypt_link(u["link"], decryption_key)
                 if decrypted_url:
-                    stream_obj = {
-                        "name": f"Flicky - {sr_info['name']}",
-                        "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
-                        "url": decrypted_url,
-                        "behaviorHints": {
+                    behavior_hints = {}
+                    if _needs_stremio_proxy(decrypted_url):
+                        behavior_hints = {
                             "notWebReady": True,
                             "proxyHeaders": {
                                 "request": COMMON_HEADERS
                             }
                         }
+
+                    stream_obj = {
+                        "name": f"Flicky - {sr_info['name']}",
+                        "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
+                        "url": decrypted_url
                     }
+                    if behavior_hints:
+                        stream_obj["behaviorHints"] = behavior_hints
                     if subtitles:
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
