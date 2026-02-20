@@ -566,7 +566,8 @@ def fetch_aniways_streams(anime_id, episode_num):
                 stream_data = r_stream.json()
                 source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
                 candidate_urls = []
-                request_headers = dict(ANIWAYS_COMMON_HEADERS)
+                # Keep stream playback headers minimal for better player compatibility (esp. mobile).
+                request_headers = {}
 
                 direct_url = stream_data.get("url")
                 if isinstance(direct_url, str) and direct_url:
@@ -602,7 +603,11 @@ def fetch_aniways_streams(anime_id, episode_num):
 
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
-                    request_headers.update(extra_headers)
+                    normalized_extra = {str(k).lower(): v for k, v in extra_headers.items()}
+                    for src, dst in (("referer", "Referer"), ("origin", "Origin"), ("user-agent", "User-Agent"), ("user_agent", "User-Agent")):
+                        val = normalized_extra.get(src)
+                        if isinstance(val, str) and val:
+                            request_headers[dst] = val
 
                 subtitles = []
                 for track in (stream_data.get("tracks") or []):
@@ -653,21 +658,19 @@ def fetch_aniways_streams(anime_id, episode_num):
                         stream_obj["subtitles"] = subtitles
                     streams.append(stream_obj)
 
-                    # Some Aniways upstreams intermittently fail when custom proxy headers are
-                    # attached by clients. Add a fallback variant without proxyHeaders so the
-                    # player can try direct playback policy for problematic MegaPlay/HD hosts.
-                    if _is_megaplay_url(stream_url) or _is_aniways_proxy_hd_url(stream_url):
-                        fallback_obj = {
-                            "name": f"Aniways - {server_name or 'Server'}",
-                            "title": f"{stream_title} (Fallback)",
-                            "url": stream_url,
-                            "behaviorHints": {
-                                "notWebReady": True,
-                            },
-                        }
-                        if subtitles:
-                            fallback_obj["subtitles"] = subtitles
-                        streams.append(fallback_obj)
+                    # Mobile clients can fail when strict proxy headers are enforced; add
+                    # a headerless fallback so the player can retry plain playback.
+                    fallback_obj = {
+                        "name": f"Aniways - {server_name or 'Server'}",
+                        "title": f"{stream_title} (Fallback)",
+                        "url": stream_url,
+                        "behaviorHints": {
+                            "notWebReady": True,
+                        },
+                    }
+                    if subtitles:
+                        fallback_obj["subtitles"] = subtitles
+                    streams.append(fallback_obj)
             except Exception:
                 continue
 
