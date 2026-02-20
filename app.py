@@ -566,6 +566,33 @@ def fetch_aniways_streams(anime_id, episode_num):
                 if isinstance(extra_headers, dict):
                     request_headers.update(extra_headers)
 
+                # Try to extract headers from proxyHls if present
+                proxy_hls_path = source_obj.get("proxyHls") if isinstance(source_obj, dict) else None
+                if isinstance(proxy_hls_path, str) and proxy_hls_path.startswith("/proxy/"):
+                    try:
+                        # proxyHls format: /proxy/<provider>/<base64_headers>/<base64_url>
+                        parts = proxy_hls_path.split('/')
+                        if len(parts) >= 4:
+                            b64_headers = parts[3]
+                            # Add padding if needed
+                            missing_padding = len(b64_headers) % 4
+                            if missing_padding:
+                                b64_headers += '=' * (4 - missing_padding)
+
+                            decoded_headers = base64.b64decode(b64_headers).decode('utf-8')
+                            proxy_headers_json = json.loads(decoded_headers)
+                            if isinstance(proxy_headers_json, dict):
+                                # Normalize headers to avoid duplicates with different casing
+                                for k, v in proxy_headers_json.items():
+                                    # Remove existing key with same name (case-insensitive)
+                                    for existing_k in list(request_headers.keys()):
+                                        if existing_k.lower() == k.lower():
+                                            del request_headers[existing_k]
+                                    request_headers[k] = v
+                    except Exception as e:
+                        # Log error but continue with default headers
+                        app.logger.warning(f"Failed to extract headers from proxyHls: {e}")
+
                 subtitles = []
                 for track in (stream_data.get("tracks") or []):
                     if not isinstance(track, dict):
