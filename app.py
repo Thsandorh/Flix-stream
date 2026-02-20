@@ -419,7 +419,13 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
             stream_obj = {
                 "name": f"AutoEmbed - {sr_info['name']}",
                 "title": f"[AutoEmbed] {sr_info['name']}",
-                "url": candidate
+                "url": candidate,
+                "behaviorHints": {
+                    "notWebReady": True,
+                    "proxyHeaders": {
+                        "request": headers
+                    }
+                }
             }
             if subtitles:
                 stream_obj["subtitles"] = subtitles
