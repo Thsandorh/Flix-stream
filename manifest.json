@@ -1,8 +1,9 @@
 {
     "id": "org.flickystream.addon",
-    "version": "1.0.22",
+    "version": "1.0.23",
     "name": "Flix-Streams",
     "description": "Stream movies and series from VidZee and AutoEmbed.",
+    "logo": "/static/icon.svg",
     "resources": ["stream"],
     "types": ["movie", "series"],
     "idPrefixes": ["tt"],
