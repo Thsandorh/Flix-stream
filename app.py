@@ -29,12 +29,12 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "tmdb"],
+    "idPrefixes": ["tt"],
     "catalogs": []
 }
 
@@ -637,25 +637,38 @@ def manifest():
 
 @app.route('/stream/<type>/<path:id>.json')
 def stream(type, id):
-    tmdb_id, season, episode = parse_stream_id(type, id)
-    app.logger.info(
-        "stream request type=%s id=%s parsed_tmdb=%s season=%s episode=%s",
-        type, id, tmdb_id, season, episode
-    )
-    if not tmdb_id:
+    # Stremio ids are expected as IMDb based, e.g. tt1234567[:season:episode].
+    decoded_id = _decode_stream_id(id)
+    parts = [p for p in decoded_id.split(':') if p]
+    imdb_id = parts[0] if parts else ""
+    if not imdb_id.startswith("tt"):
+        app.logger.warning("unsupported non-imdb id type=%s id=%s", type, id)
         return jsonify({"streams": []})
 
     kind = (type or "").lower()
-    season = _normalize_episode_part(season)
-    episode = _normalize_episode_part(episode)
-    if not season or not episode:
-        season = None
-        episode = None
+    season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
+    episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+    tmdb_id = get_tmdb_id(imdb_id, kind)
+
+    if kind in ("series", "tv") and (not season or not episode):
+        _, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+        if not season and hint_season is not None:
+            season = str(hint_season)
+        if not episode and hint_episode is not None:
+            episode = str(hint_episode)
+
+    app.logger.info(
+        "stream request type=%s id=%s imdb=%s parsed_tmdb=%s season=%s episode=%s",
+        type, id, imdb_id, tmdb_id, season, episode
+    )
+
+    if not tmdb_id:
+        return jsonify({"streams": []})
 
     # VidZee TV endpoint requires season and episode.
     if kind in ("series", "tv") and (not season or not episode):
         app.logger.warning(
-            "missing season/episode for series request type=%s id=%s", type, id
+            "missing season/episode for series request type=%s id=%s imdb=%s", type, id, imdb_id
         )
         return jsonify({"streams": []})
 

@@ -1,10 +1,10 @@
 {
     "id": "org.flickystream.addon",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "tmdb"],
+    "idPrefixes": ["tt"],
     "catalogs": []
 }
