@@ -1,39 +1,26 @@
-# VixSrc.to API Decoding Report
+# VixSrc.to API Extraction Report
 
 ## Summary
-The `vixsrc.to` streaming API is protected by a multi-layered obfuscation system known as **ZFG / Jomtingi**. The site does not expose a public API endpoint for video sources. Instead, it relies on client-side JavaScript to dynamically generate requests, verify the browser environment (e.g., checking for sandboxing), and load content via an ad network integration.
+The `vixsrc.to` streaming link can be extracted **statically** without browser emulation (Playwright/Selenium) or solving complex ROT14 ciphers. The site serves the master playlist configuration directly in the HTML source, alongside a heavy obfuscated ad-network script which acts as a decoy/gatekeeper for browser clients but is not strictly required to construct the stream URL.
 
-## Decryption Logic
-The core configuration is hidden in a massive JavaScript object literal using a custom **ROT14** cipher.
+## Extraction Logic
+1.  **Fetch the Embed Page:** request `https://vixsrc.to/movie/{tmdb_id}` (or `tv/{id}/{s}/{e}`).
+2.  **Parse `window.masterPlaylist`:** Locate the JSON object literal assigned to `window.masterPlaylist` in the HTML.
+3.  **Construct URL:**
+    *   Base URL: `window.masterPlaylist.url` (e.g., `https://vixsrc.to/playlist/{internal_id}`)
+    *   Parameters: Append all keys from `window.masterPlaylist.params`.
+    *   **Crucial Extra Parameters:** Append `h=1` and `lang=en`.
 
-- **Cipher:** ROT14 (Shift +14) on `[a-z]` and `[A-Z]`.
-- **Signature:** The object is identified by the key `x` with value `AzOxuow` (decodes to `OnClick`).
+## Python Implementation
+The provided `vixsrc_integration.py` script demonstrates this logic.
 
-## Extracted Logic
-The provided `vixsrc_integration.py` script performs the following:
-1.  Fetches the embed page.
-2.  Locates the obfuscated configuration object.
-3.  Decodes all keys and values using ROT14.
-4.  Constructs the **Ad Verification URL** (e.g., `https://jomtingi.net/apu.php?zoneid=...`).
+```bash
+python3 vixsrc_integration.py [TMDB_ID] --type [movie|tv]
+```
+
+## "H" Parameter
+The user's hint "H kiszedheto" refers to the `h=1` query parameter which is mandatory for the playlist URL to resolve correctly. It is appended dynamically by the `vixsrc-nxIkFVjF.js` script but can be statically added.
 
 ## Limitations
-A direct `.m3u8` link **cannot** be extracted purely via Python/Requests for the following reasons:
-1.  **Dynamic Domain Generation:** The script generates a random domain (using `Math.random()`) to fetch the next stage script (`tag.min.js`).
-2.  **Browser Verification:** The script explicitly checks for "Sandboxed iframe" and other browser features. If these checks fail (which they do in a simple HTTP client), the player loading sequence is aborted.
-3.  **Ad Network Gating:** The content delivery appears to be tied to the successful execution of the `jomtingi.net` script, which is currently blocked or requires a specific Referer/Session.
-
-## Recommendation
-To fully integrate `vixsrc.to` into a scraper:
-1.  Use **Playwright** or **Puppeteer** to render the page.
-2.  The browser will automatically handle the ROT14 decoding and script execution.
-3.  Intercept network traffic (XHR/Fetch) matching `.m3u8` or the ad verification URL identified by the `vixsrc_integration.py` tool.
-
-## Tool Usage
-```bash
-python3 vixsrc_integration.py [TMDB_ID]
-```
-Example:
-```bash
-python3 vixsrc_integration.py 27205
-```
-This will output the decoded configuration and the next-step URL for analysis.
+*   The extraction relies on the current page structure where `window.masterPlaylist` is exposed in the HTML.
+*   The `token` and `expires` parameters are generated server-side and included in the HTML, so a fresh request to the embed page is always required to get a valid link.

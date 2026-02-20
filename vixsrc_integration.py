@@ -2,35 +2,26 @@ import requests
 import re
 import json
 import sys
+from urllib.parse import urlencode
 
 class VixSrcDecoder:
     """
-    Decodes the obfuscated API/Player configuration from vixsrc.to.
-    The site uses a ROT14 cipher on client-side JavaScript strings.
+    Decodes the VixSrc.to API to extract the direct HLS (m3u8) link.
     """
 
     BASE_URL = "https://vixsrc.to"
+    # Use a standard browser UA to avoid being served the captcha page
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-    @staticmethod
-    def rot14(s):
-        """Decodes a string using the ROT14 cipher (Shift +14)."""
-        if not isinstance(s, str):
-            return s
-        result = []
-        for char in s:
-            if 'a' <= char <= 'z':
-                result.append(chr((ord(char) - 97 + 14) % 26 + 97))
-            elif 'A' <= char <= 'Z':
-                result.append(chr((ord(char) - 65 + 14) % 26 + 65))
-            else:
-                result.append(char)
-        return "".join(result)
-
-    def get_decoded_config(self, tmdb_id, media_type="movie"):
-        """Fetches and decodes the configuration."""
+    def get_stream_url(self, tmdb_id, media_type="movie"):
+        """
+        Fetches the embed page and extracts the master playlist URL.
+        """
         url = f"{self.BASE_URL}/{media_type}/{tmdb_id}"
-        headers = {"User-Agent": self.USER_AGENT, "Referer": self.BASE_URL}
+        headers = {
+            "User-Agent": self.USER_AGENT,
+            "Referer": self.BASE_URL,
+        }
 
         print(f"[*] Fetching {url}...", file=sys.stderr)
         try:
@@ -40,113 +31,64 @@ class VixSrcDecoder:
         except Exception as e:
             return {"error": f"Failed to fetch page: {e}"}
 
-        # Find signature "AzOxuow" (x: OnClick)
-        signature = "AzOxuow"
-        idx = html.find(signature)
-        if idx == -1:
-             if "Just a moment..." in html:
-                 return {"error": "Cloudflare Challenge Detected. Browser required."}
-             return {"error": "Could not find configuration signature in HTML."}
+        # Look for window.masterPlaylist object
+        # It's a JS object literal in the HTML
 
-        # Walk back to find the start of the object
-        # It's usually passed to entries({...})
-        start_idx = html.rfind("entries({", 0, idx)
-        if start_idx == -1:
-             start_idx = html.rfind("({", 0, idx)
+        # Regex to capture the content inside window.masterPlaylist = { ... }
+        match = re.search(r'window\.masterPlaylist\s*=\s*({.*?})\s*window\.canPlay', html, re.DOTALL)
 
-        if start_idx == -1:
-            return {"error": "Could not find start of config object."}
+        if not match:
+             return {"error": "Could not find 'window.masterPlaylist' in HTML. The site might have changed layout or blocked the request."}
 
-        open_brace = html.find("{", start_idx)
+        js_obj = match.group(1)
 
-        # Find matching closing brace
-        cnt = 0
-        end_idx = -1
-        for i in range(open_brace, len(html)):
-            if html[i] == '{': cnt += 1
-            elif html[i] == '}':
-                cnt -= 1
-                if cnt == 0:
-                    end_idx = i + 1
-                    break
+        # Extract base URL
+        url_match = re.search(r"url:\s*['\"]([^'\"]+)['\"]", js_obj)
+        if not url_match:
+            return {"error": "Found masterPlaylist but no URL."}
 
-        if end_idx == -1:
-            return {"error": "Could not parse object boundaries."}
+        base_playlist_url = url_match.group(1)
 
-        raw_json_like = html[open_brace:end_idx]
-        decoded_data = {}
+        # Extract params object
+        params_match = re.search(r'params:\s*({.*?}),', js_obj, re.DOTALL)
+        query_params = {}
 
-        # Regex to extract key-value pairs
-        # Improved regex to handle quoted keys and empty strings correctly
-        # Matches: key:"val", "key":"val", key:123
-        pairs = re.findall(r'(?:["\']?([a-zA-Z0-9_]+)["\']?)\s*:\s*(?:"([^"]*)"|\'([^\']*)\'|([0-9\.]+)|(null|true|false))', raw_json_like)
+        if params_match:
+            raw_params = params_match.group(1)
+            # Parse 'key': 'value' or 'key': value lines
+            # Updated to handle unquoted values (numbers/booleans/null) if present
+            # Matches: key : "value" OR key : 123
+            pairs = re.findall(r"['\"]?(\w+)['\"]?:\s*(?:['\"]([^'\"]*)['\"]|([0-9\.]+))", raw_params)
+            for k, v_str, v_num in pairs:
+                if v_str:
+                    query_params[k] = v_str
+                else:
+                    query_params[k] = v_num
 
-        if not pairs:
-             return {"error": "Found config object but failed to parse keys."}
+        # Logic from vixsrc-nxIkFVjF.js:
+        # i.searchParams.append("h",1);
+        # i.searchParams.append("lang",h); // h defaults to "en"
 
-        for key, val_d, val_s, val_n, val_l in pairs:
-            if val_d is not None and val_d != "":
-                decoded_data[key] = self.rot14(val_d)
-            elif val_s is not None and val_s != "":
-                decoded_data[key] = self.rot14(val_s)
-            elif val_d == "" or val_s == "": # Handle empty strings explicitly
-                decoded_data[key] = ""
-            elif val_n:
-                decoded_data[key] = float(val_n) if '.' in val_n else int(val_n)
-            elif val_l:
-                decoded_data[key] = val_l
+        query_params["h"] = "1"
+        if "lang" not in query_params:
+            query_params["lang"] = "en"
 
-        return decoded_data
-
-    def analyze_config(self, config):
-        """Analyzes the decoded configuration for next steps."""
-        analysis = {}
-
-        # Ad Network / Verification URL
-        if "Kj" in config and "l" in config and "WK" in config:
-            zone_id = config["l"]
-            params = config["WK"]
-            base_ad_url = config["Kj"]
-            if base_ad_url.startswith("//"):
-                base_ad_url = "https:" + base_ad_url
-
-            analysis["ad_verification_url"] = f"{base_ad_url}{zone_id}{params}"
-
-        # Delivery Method
-        if "pK" in config:
-            analysis["delivery_method"] = config["pK"] # requestByCSS
-
-        if "vM" in config and "QM" in config:
-            analysis["tag_url_template"] = f"{config['vM']}[random_domain]{config['QM']}"
-
-        return analysis
+        final_url = f"{base_playlist_url}?{urlencode(query_params)}"
+        return {"url": final_url}
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Decode VixSrc API Config")
-    parser.add_argument("id", nargs='?', help="TMDB ID of the movie", default="27205")
+    parser = argparse.ArgumentParser(description="Extract VixSrc m3u8 link")
+    parser.add_argument("id", nargs='?', help="TMDB ID", default="27205")
+    parser.add_argument("--type", help="Media type (movie/tv)", default="movie")
     args = parser.parse_args()
 
     decoder = VixSrcDecoder()
-    config = decoder.get_decoded_config(args.id)
+    result = decoder.get_stream_url(args.id, args.type)
 
-    if "error" in config:
-        print(f"Error: {config['error']}")
+    if "error" in result:
+        print(f"Error: {result['error']}")
         sys.exit(1)
-
-    print(f"[*] Successfully decoded configuration for ID {args.id}")
-
-    analysis = decoder.analyze_config(config)
-    print("\n--- Analysis ---")
-    for k, v in analysis.items():
-        print(f"{k}: {v}")
-
-    print("\n--- Next Steps ---")
-    print("1. The 'ad_verification_url' is likely the gatekeeper.")
-    print("2. The script generates a random domain and fetches 'tag.min.js'.")
-    print("3. Browser emulation is required to execute the ad script and bypass the sandbox check.")
-
-    # Dump full config
-    with open("vixsrc_config.json", "w") as f:
-        json.dump(config, f, indent=2)
-    print(f"\n[*] Full configuration saved to 'vixsrc_config.json'")
+    else:
+        print(f"[*] Extracted HLS URL:")
+        print(result['url'])
