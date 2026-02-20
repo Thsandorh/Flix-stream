@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import base64
@@ -8,6 +9,9 @@ from urllib.parse import unquote
 from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import PBKDF2
+from Crypto.Hash import SHA256
+from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
@@ -26,7 +30,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.20",
+    "version": "1.0.22",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -48,6 +52,19 @@ COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Referer": "https://player.vidzee.wtf/",
     "Origin": "https://player.vidzee.wtf"
+}
+
+AUTOEMBED_SERVERS = [
+    {"id": "2", "name": "Glory"},
+    {"id": "3", "name": "Server 3"},
+    {"id": "7", "name": "Server 7"},
+    {"id": "9", "name": "Hindi"},
+]
+
+AUTOEMBED_COMMON_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": "https://test.autoembed.cc/",
+    "Origin": "https://test.autoembed.cc",
 }
 
 LANG_MAP = {
@@ -253,6 +270,35 @@ def _needs_stremio_proxy(decrypted_url):
         return False
     return True
 
+def decrypt_autoembed_response(data_json):
+    """Decrypt AutoEmbed API response using PBKDF2 and AES-CBC."""
+    try:
+        payload = data_json
+        if isinstance(payload, dict) and "data" in payload:
+            inner_json_str = base64.b64decode(payload["data"]).decode("utf-8")
+            payload = json.loads(inner_json_str)
+
+        key_hex = payload.get("key")
+        iv_hex = payload.get("iv")
+        salt_hex = payload.get("salt")
+        iterations = int(payload.get("iterations", 0))
+        encrypted_data_b64 = payload.get("encryptedData")
+
+        if not all([key_hex, iv_hex, salt_hex, encrypted_data_b64]) or iterations <= 0:
+            return None
+
+        salt = bytes.fromhex(salt_hex)
+        iv = bytes.fromhex(iv_hex)
+        encrypted_data = base64.b64decode(encrypted_data_b64)
+        key = PBKDF2(key_hex, salt, dkLen=32, count=iterations, hmac_hash_module=SHA256)
+
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
+        return json.loads(decrypted_data.decode("utf-8"))
+    except Exception as e:
+        app.logger.error(f"AutoEmbed response decryption failed: {e}")
+        return None
+
 def parse_subtitles(subtitle_list):
     """Parses VidZee subtitle list into Stremio format."""
     parsed = []
@@ -322,8 +368,8 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                         }
 
                     stream_obj = {
-                        "name": f"Flicky - {sr_info['name']}",
-                        "title": f"{u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
+                        "name": f"VidZee - {sr_info['name']}",
+                        "title": f"[VidZee] {u.get('lang', 'English')} {u.get('message', '')}\n{u.get('name', '')}",
                         "url": decrypted_url
                     }
                     if behavior_hints:
@@ -333,6 +379,58 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                     streams.append(stream_obj)
     except Exception as e:
         app.logger.error(f"Error fetching streams for server {sr}: {e}")
+    return streams
+
+def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
+    """Fetch streams from AutoEmbed API for one server."""
+    sr = sr_info["id"]
+    api_url = f"https://test.autoembed.cc/api/server?id={tmdb_id}&sr={sr}"
+    if season and episode:
+        api_url += f"&ss={season}&ep={episode}"
+        referer = f"https://test.autoembed.cc/embed/tv/{tmdb_id}/{season}/{episode}"
+    else:
+        referer = f"https://test.autoembed.cc/embed/movie/{tmdb_id}"
+
+    headers = AUTOEMBED_COMMON_HEADERS.copy()
+    headers["Referer"] = referer
+
+    streams = []
+    try:
+        r = requests.get(api_url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        decrypted_data = decrypt_autoembed_response(data)
+        if not decrypted_data:
+            return streams
+
+        raw_subs = (
+            decrypted_data.get("tracks", [])
+            or decrypted_data.get("subtitles", [])
+            or decrypted_data.get("subtitle", [])
+        )
+        subtitles = parse_subtitles(raw_subs)
+
+        stream_url = decrypted_data.get("url")
+        url_candidates = stream_url if isinstance(stream_url, list) else [stream_url]
+        for candidate in url_candidates:
+            if not candidate:
+                continue
+            stream_obj = {
+                "name": f"AutoEmbed - {sr_info['name']}",
+                "title": f"[AutoEmbed] {sr_info['name']}",
+                "url": candidate,
+                "behaviorHints": {
+                    "notWebReady": True,
+                    "proxyHeaders": {
+                        "request": headers
+                    }
+                }
+            }
+            if subtitles:
+                stream_obj["subtitles"] = subtitles
+            streams.append(stream_obj)
+    except Exception as e:
+        app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
     return streams
 
 @app.route('/')
@@ -371,19 +469,39 @@ def stream(type, id):
     if kind in ("series", "tv") and (not season or not episode):
         return jsonify({"streams": []})
 
-    decryption_key = get_decryption_key()
-    if not decryption_key:
-        return jsonify({"streams": []})
-
     all_streams = []
-    # Increase workers to ensure all server requests start immediately
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    decryption_key = get_decryption_key()
+    if decryption_key:
+        # VidZee provider
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = executor.map(
+                lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
+                SERVERS
+            )
+            for res in results:
+                all_streams.extend(res)
+    else:
+        app.logger.warning("VidZee decryption key unavailable; skipping VidZee provider")
+
+    # AutoEmbed provider
+    with ThreadPoolExecutor(max_workers=6) as executor:
         results = executor.map(
-            lambda s: fetch_server_streams(tmdb_id, s, season, episode, decryption_key),
-            SERVERS
+            lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode),
+            AUTOEMBED_SERVERS
         )
         for res in results:
             all_streams.extend(res)
+
+    # Keep provider groups stable in the list (VidZee first, AutoEmbed second).
+    def _provider_rank(stream_obj):
+        name = str(stream_obj.get("name", "")).lower()
+        if name.startswith("vidzee"):
+            return 0
+        if name.startswith("autoembed"):
+            return 1
+        return 2
+
+    all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
     return jsonify({"streams": all_streams})
 
