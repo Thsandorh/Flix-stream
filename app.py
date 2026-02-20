@@ -1,6 +1,7 @@
 import os
 import re
 import base64
+import json
 import hashlib
 import time
 import requests
@@ -150,6 +151,32 @@ def decrypt_link(encrypted_link, key_str):
         return decrypted[:-padding_len].decode()
     except Exception:
         return None
+
+def extract_headers_from_proxy(proxy_url):
+    """
+    Extracts Referer and Origin headers from the proxyHls string (Aniways).
+    Format is typically: /proxy/hd/{base64_headers}/{base64_url}
+    """
+    try:
+        parts = proxy_url.split('/')
+        for part in parts:
+            if part.startswith('ey'):
+                padding = len(part) % 4
+                if padding:
+                    part += '=' * (4 - padding)
+
+                decoded_bytes = base64.b64decode(part)
+                headers_json = json.loads(decoded_bytes)
+
+                headers = {}
+                if "referer" in headers_json:
+                    headers["Referer"] = headers_json["referer"]
+                if "origin" in headers_json:
+                    headers["Origin"] = headers_json["origin"]
+                return headers
+    except Exception as e:
+        app.logger.error(f"Error parsing proxy headers: {e}")
+    return {}
 
 @lru_cache(maxsize=2048)
 def get_tmdb_id(imdb_id, content_type=None):
