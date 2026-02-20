@@ -10,6 +10,7 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
 - Fetches streams from:
   - VidZee (`player.vidzee.wtf`)
   - AutoEmbed (`test.autoembed.cc`)
+  - VixSrc (`vixsrc.to`)
   - Aniways (`api.aniways.xyz`) with direct Aniways and Kitsu ID support
 - Returns subtitles when available.
 

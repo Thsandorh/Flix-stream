@@ -5,7 +5,7 @@ import base64
 import hashlib
 import time
 import requests
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode
 from functools import lru_cache
 from flask import Flask, jsonify, render_template, request
 from Crypto.Cipher import AES
@@ -30,9 +30,9 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.34",
+    "version": "1.0.35",
     "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee, AutoEmbed, Aniways, and Kitsu IDs.",
+    "description": "Stream movies and series from VidZee, AutoEmbed, VixSrc, Aniways, and Kitsu IDs.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
@@ -66,6 +66,13 @@ AUTOEMBED_COMMON_HEADERS = {
     "User-Agent": COMMON_HEADERS["User-Agent"],
     "Referer": "https://test.autoembed.cc/",
     "Origin": "https://test.autoembed.cc",
+}
+
+VIXSRC_BASE_URL = "https://vixsrc.to"
+VIXSRC_COMMON_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": f"{VIXSRC_BASE_URL}/",
+    "Origin": VIXSRC_BASE_URL,
 }
 
 ANIWAYS_API_BASE = "https://api.aniways.xyz"
@@ -475,6 +482,128 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
     except Exception as e:
         app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
     return streams
+
+def _extract_braced_js_object(text, from_index):
+    start = str(text or "").find("{", max(0, int(from_index or 0)))
+    if start < 0:
+        return None
+
+    depth = 0
+    in_string = None
+    escaped = False
+    payload = str(text)
+
+    for idx in range(start, len(payload)):
+        ch = payload[idx]
+        if in_string:
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\":
+                escaped = True
+                continue
+            if ch == in_string:
+                in_string = None
+            continue
+
+        if ch in ("'", '"'):
+            in_string = ch
+            continue
+        if ch == "{":
+            depth += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            if depth == 0:
+                return payload[start:idx + 1]
+    return None
+
+def _extract_vixsrc_playlist_url(html_text):
+    html = str(html_text or "")
+    marker = "window.masterPlaylist"
+    marker_idx = html.find(marker)
+    if marker_idx < 0:
+        return None
+
+    assign_idx = html.find("=", marker_idx)
+    if assign_idx < 0:
+        return None
+
+    master_obj = _extract_braced_js_object(html, assign_idx)
+    if not master_obj:
+        return None
+
+    url_match = re.search(r"url\s*:\s*['\"]([^'\"]+)['\"]", master_obj)
+    if not url_match:
+        return None
+    base_url = url_match.group(1).strip()
+    if not base_url:
+        return None
+    if base_url.startswith("/"):
+        base_url = f"{VIXSRC_BASE_URL}{base_url}"
+
+    params = {}
+    params_key = re.search(r"\bparams\s*:", master_obj)
+    if params_key:
+        params_obj = _extract_braced_js_object(master_obj, params_key.end())
+        if params_obj:
+            pairs = re.findall(
+                r"['\"]?([a-zA-Z0-9_]+)['\"]?\s*:\s*(?:['\"]([^'\"]*)['\"]|([0-9]+(?:\.[0-9]+)?|true|false|null))",
+                params_obj
+            )
+            for key, str_val, raw_val in pairs:
+                if str_val != "":
+                    params[key] = str(str_val).strip()
+                elif raw_val != "":
+                    params[key] = str(raw_val).strip()
+                else:
+                    params[key] = ""
+
+    params["h"] = "1"
+    if not params.get("lang"):
+        params["lang"] = "en"
+
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}{urlencode(params)}"
+
+def fetch_vixsrc_streams(tmdb_id, content_type, season, episode):
+    """Fetch stream links from VixSrc by decoding window.masterPlaylist from the embed page."""
+    media_type = "tv" if str(content_type or "").lower() in ("series", "tv") else "movie"
+    if media_type == "tv":
+        if not season or not episode:
+            return []
+        embed_url = f"{VIXSRC_BASE_URL}/tv/{tmdb_id}/{season}/{episode}"
+        title_suffix = f"S{season}E{episode}"
+    else:
+        embed_url = f"{VIXSRC_BASE_URL}/movie/{tmdb_id}"
+        title_suffix = "Movie"
+
+    request_headers = {
+        "User-Agent": VIXSRC_COMMON_HEADERS["User-Agent"],
+        "Referer": VIXSRC_COMMON_HEADERS["Referer"],
+    }
+
+    try:
+        r = requests.get(embed_url, headers=request_headers, timeout=10)
+        r.raise_for_status()
+        playlist_url = _extract_vixsrc_playlist_url(r.text)
+        if not playlist_url:
+            return []
+
+        return [{
+            "name": "VixSrc",
+            "title": f"[VixSrc] {title_suffix}",
+            "url": playlist_url,
+            "behaviorHints": {
+                "notWebReady": True,
+                "proxyHeaders": {
+                    "request": dict(VIXSRC_COMMON_HEADERS)
+                }
+            }
+        }]
+    except Exception as e:
+        app.logger.error(f"Error fetching VixSrc streams for TMDB {tmdb_id}: {e}")
+        return []
 
 def _decode_b64_loose(token):
     raw = str(token or "").strip()
@@ -962,16 +1091,21 @@ def stream(type, id):
         for res in results:
             all_streams.extend(res)
 
-    # Keep provider groups stable in the list (VidZee first, AutoEmbed second).
+    # VixSrc provider
+    all_streams.extend(fetch_vixsrc_streams(tmdb_id, kind, season, episode))
+
+    # Keep provider groups stable in the list.
     def _provider_rank(stream_obj):
         name = str(stream_obj.get("name", "")).lower()
         if name.startswith("vidzee"):
             return 0
         if name.startswith("autoembed"):
             return 1
-        if name.startswith("aniways"):
+        if name.startswith("vixsrc"):
             return 2
-        return 3
+        if name.startswith("aniways"):
+            return 3
+        return 4
 
     all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
