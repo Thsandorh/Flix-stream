@@ -13,6 +13,7 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
 from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
+from cineby_integration import CinebyProvider
 
 app = Flask(__name__)
 
@@ -498,6 +499,16 @@ def stream(type, id):
         for res in results:
             all_streams.extend(res)
 
+    # Cineby provider
+    try:
+        # We run this synchronously or in its own executor to not block if it hangs
+        # Using a small executor or just direct call if fast enough.
+        # Since it fetches multiple providers internally, we rely on its timeout.
+        cineby_streams = CinebyProvider.get_streams(imdb_id, tmdb_id, season, episode)
+        all_streams.extend(cineby_streams)
+    except Exception as e:
+        app.logger.error(f"Cineby provider error: {e}")
+
     # Keep provider groups stable in the list (VidZee first, AutoEmbed second).
     def _provider_rank(stream_obj):
         name = str(stream_obj.get("name", "")).lower()
@@ -505,7 +516,9 @@ def stream(type, id):
             return 0
         if name.startswith("autoembed"):
             return 1
-        return 2
+        if name.startswith("cineby"):
+            return 2
+        return 3
 
     all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
