@@ -30,13 +30,13 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.24",
+    "version": "1.0.25",
     "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee and AutoEmbed.",
+    "description": "Stream movies and series from VidZee, AutoEmbed, and Aniways.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt"],
+    "idPrefixes": ["tt", "aniways"],
     "catalogs": []
 }
 
@@ -66,6 +66,13 @@ AUTOEMBED_COMMON_HEADERS = {
     "User-Agent": COMMON_HEADERS["User-Agent"],
     "Referer": "https://test.autoembed.cc/",
     "Origin": "https://test.autoembed.cc",
+}
+
+ANIWAYS_API_BASE = "https://api.aniways.xyz"
+ANIWAYS_COMMON_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": "https://aniways.xyz/",
+    "Origin": "https://aniways.xyz",
 }
 
 LANG_MAP = {
@@ -434,6 +441,94 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
         app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
     return streams
 
+def fetch_aniways_streams(anime_id, episode_num):
+    """Fetch stream links from Aniways for a specific anime and episode number."""
+    try:
+        episodes_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes"
+        r_ep = requests.get(episodes_url, headers=ANIWAYS_COMMON_HEADERS, timeout=10)
+        if r_ep.status_code != 200:
+            app.logger.warning(f"Aniways episodes lookup failed ({r_ep.status_code}) for anime {anime_id}")
+            return []
+
+        episodes = r_ep.json()
+        target_ep = None
+        for ep in episodes:
+            if str(ep.get("number")) == str(episode_num):
+                target_ep = ep
+                break
+
+        if not target_ep:
+            app.logger.info(f"Aniways episode not found: anime={anime_id}, episode={episode_num}")
+            return []
+
+        episode_id = target_ep.get("id")
+        if not episode_id:
+            return []
+
+        servers_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/{episode_id}/servers"
+        r_srv = requests.get(servers_url, headers=ANIWAYS_COMMON_HEADERS, timeout=10)
+        if r_srv.status_code != 200:
+            app.logger.warning(f"Aniways servers lookup failed ({r_srv.status_code}) for anime {anime_id} episode {episode_id}")
+            return []
+
+        servers = r_srv.json()
+        streams = []
+        for srv in servers:
+            server_id = srv.get("serverId")
+            server_name = srv.get("serverName")
+            server_type = srv.get("type")
+            if not server_id:
+                continue
+
+            stream_api_url = f"{ANIWAYS_API_BASE}/anime/{anime_id}/episodes/servers/{server_id}"
+            params = {
+                "server": server_name.lower().replace(" ", "-") if server_name else "",
+                "type": server_type.lower() if server_type else ""
+            }
+
+            try:
+                r_stream = requests.get(
+                    stream_api_url,
+                    headers=ANIWAYS_COMMON_HEADERS,
+                    params=params,
+                    timeout=8
+                )
+                if r_stream.status_code != 200:
+                    continue
+
+                stream_data = r_stream.json()
+                stream_url = stream_data.get("url")
+                if not stream_url:
+                    continue
+
+                behavior_hints = {
+                    "notWebReady": True,
+                    "proxyHeaders": {
+                        "request": ANIWAYS_COMMON_HEADERS
+                    }
+                }
+
+                returned_headers = stream_data.get("headers")
+                if isinstance(returned_headers, dict) and returned_headers:
+                    merged_headers = dict(ANIWAYS_COMMON_HEADERS)
+                    merged_headers.update(returned_headers)
+                    behavior_hints["proxyHeaders"]["request"] = merged_headers
+
+                streams.append({
+                    "name": f"Aniways - {server_name or 'Server'}",
+                    "title": f"[Aniways] Episode {episode_num} - {server_name or 'Server'}",
+                    "url": stream_url,
+                    "behaviorHints": behavior_hints
+                })
+            except Exception as e:
+                app.logger.error(f"Aniways stream fetch failed for server {server_id}: {e}")
+                continue
+
+        return streams
+    except Exception as e:
+        app.logger.error(f"Aniways integration failed for anime {anime_id}: {e}")
+        return []
+
 @app.route('/')
 @app.route('/configure')
 def index():
@@ -457,6 +552,24 @@ def stream(type, id):
     kind = (type or "").lower()
     season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
     episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+
+    if imdb_id.lower() == "aniways":
+        anime_id = parts[1] if len(parts) > 1 else None
+        aniways_episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+        if not aniways_episode and len(parts) > 3:
+            aniways_episode = _normalize_episode_part(parts[3])
+
+        if not anime_id or not aniways_episode:
+            return jsonify({"streams": []})
+
+        aniways_streams = fetch_aniways_streams(anime_id, aniways_episode)
+        aniways_streams.sort(key=lambda s: (str(s.get("name", "")), str(s.get("title", ""))))
+        aniways_streams.append({
+            "name": "Flix-Streams",
+            "title": "Support development on Ko-fi",
+            "externalUrl": "https://ko-fi.com/sandortoth",
+        })
+        return jsonify({"streams": aniways_streams})
 
     if not imdb_id.startswith("tt"):
         return jsonify({"streams": []})
@@ -505,7 +618,9 @@ def stream(type, id):
             return 0
         if name.startswith("autoembed"):
             return 1
-        return 2
+        if name.startswith("aniways"):
+            return 2
+        return 3
 
     all_streams.sort(key=lambda s: (_provider_rank(s), str(s.get("name", "")), str(s.get("title", ""))))
 
