@@ -1,5 +1,4 @@
 import requests
-import urllib.parse
 import hashlib
 import base64
 import json
@@ -46,6 +45,7 @@ class CinebyProvider:
             "mediaType": media_type,
             "tmdbId": str(tmdb_id),
             "imdbId": str(imdb_id),
+            "key": key,
         }
         
         if media_type == "tv":
@@ -66,20 +66,40 @@ class CinebyProvider:
             try:
                 r = requests.get(url, params=params, headers=headers, timeout=10)
                 r.raise_for_status()
-                response_text = r.text
+                response_text = (r.text or "").strip()
+                if not response_text:
+                    continue
+
+                if response_text.startswith("{") and response_text.endswith("}"):
+                    payload = json.loads(response_text)
+                    response_text = payload.get("data") or payload.get("result") or ""
+                elif response_text.startswith("\"") and response_text.endswith("\""):
+                    response_text = json.loads(response_text)
                 
                 decrypted = CinebyProvider.decrypt_response(response_text, key, tmdb_id)
                 if decrypted:
                     data = json.loads(decrypted)
-                    for source in data.get("sources", []):
+                    sources = data.get("sources")
+                    if not isinstance(sources, list):
+                        sources = (data.get("data") or {}).get("sources", [])
+
+                    for source in sources:
+                        stream_url = source.get("url") or source.get("file") or source.get("src") or source.get("link")
+                        if not stream_url:
+                            continue
+                        quality = source.get("quality") or source.get("label") or "Unknown"
+                        source_headers = source.get("headers") if isinstance(source.get("headers"), dict) else {}
+                        proxy_headers = dict(headers)
+                        proxy_headers.update(source_headers)
+
                         streams.append({
-                            "name": f"Cineby - {provider} - {source.get('quality', 'Unknown')}",
-                            "title": f"Cineby {source.get('quality', '')}",
-                            "url": source.get("url"),
+                            "name": f"Cineby - {provider} - {quality}",
+                            "title": f"Cineby {quality}",
+                            "url": stream_url,
                             "behaviorHints": {
                                 "notWebReady": True,
                                 "proxyHeaders": {
-                                    "request": headers
+                                    "request": proxy_headers
                                 }
                             }
                         })
