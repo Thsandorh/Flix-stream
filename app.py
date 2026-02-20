@@ -3,11 +3,13 @@ import os
 import re
 import base64
 import hashlib
+import hmac
+import ipaddress
 import time
 import requests
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode, urljoin, urlparse
 from functools import lru_cache
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
@@ -67,6 +69,33 @@ AUTOEMBED_COMMON_HEADERS = {
     "Referer": "https://test.autoembed.cc/",
     "Origin": "https://test.autoembed.cc",
 }
+
+PROXY_SIGNING_KEY = os.environ.get("PROXY_SIGNING_KEY", MASTER_KEY)
+PROXY_TOKEN_TTL_SECONDS = int(os.environ.get("PROXY_TOKEN_TTL_SECONDS", "3600"))
+PROXY_TIMEOUT = (10, 45)
+PROXY_RETRY_STATUSES = {429, 500, 502, 503, 504}
+HOP_BY_HOP_HEADERS = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+}
+PASSTHROUGH_RESPONSE_HEADERS = (
+    "Content-Type",
+    "Content-Length",
+    "Content-Range",
+    "Accept-Ranges",
+    "Cache-Control",
+    "ETag",
+    "Last-Modified",
+    "Expires",
+)
+PASSTHROUGH_RESPONSE_HEADERS_LOWER = {name.lower() for name in PASSTHROUGH_RESPONSE_HEADERS}
+MANIFEST_URI_PATTERN = re.compile(r'URI="([^"]+)"')
 
 LANG_MAP = {
     "English": "eng",
@@ -271,6 +300,122 @@ def _needs_stremio_proxy(decrypted_url):
         return False
     return True
 
+def _b64url_encode(raw_bytes):
+    return base64.urlsafe_b64encode(raw_bytes).decode("ascii").rstrip("=")
+
+def _b64url_decode(encoded):
+    token = str(encoded or "")
+    padding = "=" * (-len(token) % 4)
+    return base64.urlsafe_b64decode(token + padding)
+
+def _sign_proxy_payload(payload_token):
+    return hmac.new(
+        PROXY_SIGNING_KEY.encode("utf-8"),
+        payload_token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+def _build_autoembed_proxy_url(base_url, target_url, headers, ttl_seconds=PROXY_TOKEN_TTL_SECONDS):
+    if not base_url or not target_url:
+        return None
+
+    safe_headers = headers or {}
+    payload = {
+        "u": str(target_url),
+        "h": {
+            "User-Agent": str(safe_headers.get("User-Agent", "")),
+            "Referer": str(safe_headers.get("Referer", "")),
+            "Origin": str(safe_headers.get("Origin", "")),
+        },
+        "exp": int(time.time()) + max(60, int(ttl_seconds or PROXY_TOKEN_TTL_SECONDS)),
+    }
+    payload_token = _b64url_encode(
+        json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    )
+    signature = _sign_proxy_payload(payload_token)
+    return f"{base_url.rstrip('/')}/proxy/autoembed?{urlencode({'d': payload_token, 's': signature})}"
+
+def _decode_autoembed_proxy_payload(payload_token, signature):
+    if not payload_token or not signature:
+        return None, None
+
+    expected_signature = _sign_proxy_payload(payload_token)
+    if not hmac.compare_digest(expected_signature, str(signature)):
+        return None, None
+
+    try:
+        payload = json.loads(_b64url_decode(payload_token).decode("utf-8"))
+    except Exception:
+        return None, None
+
+    try:
+        expires_at = int(payload.get("exp", 0))
+    except (TypeError, ValueError):
+        return None, None
+    if expires_at <= int(time.time()):
+        return None, None
+
+    target_url = str(payload.get("u", "")).strip()
+    raw_headers = payload.get("h") if isinstance(payload.get("h"), dict) else {}
+    headers = {
+        "User-Agent": str(raw_headers.get("User-Agent") or AUTOEMBED_COMMON_HEADERS["User-Agent"]),
+        "Referer": str(raw_headers.get("Referer") or AUTOEMBED_COMMON_HEADERS["Referer"]),
+        "Origin": str(raw_headers.get("Origin") or AUTOEMBED_COMMON_HEADERS["Origin"]),
+    }
+    return target_url, headers
+
+def _is_blocked_proxy_target(target_url):
+    try:
+        parsed = urlparse(str(target_url or ""))
+    except Exception:
+        return True
+
+    if parsed.scheme not in ("http", "https"):
+        return True
+
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname or hostname in ("localhost",):
+        return True
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+def _rewrite_manifest_for_proxy(manifest_text, upstream_url, proxy_base_url, proxy_headers):
+    def _proxyify(raw_url):
+        absolute_url = urljoin(upstream_url, raw_url.strip())
+        return _build_autoembed_proxy_url(proxy_base_url, absolute_url, proxy_headers)
+
+    def _rewrite_uri_attribute(match):
+        proxied = _proxyify(match.group(1))
+        if not proxied:
+            return match.group(0)
+        return f'URI="{proxied}"'
+
+    rewritten_lines = []
+    for line in str(manifest_text or "").splitlines():
+        line = MANIFEST_URI_PATTERN.sub(_rewrite_uri_attribute, line)
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            proxied = _proxyify(stripped)
+            if proxied:
+                line = proxied
+        rewritten_lines.append(line)
+
+    if manifest_text.endswith("\n"):
+        return "\n".join(rewritten_lines) + "\n"
+    return "\n".join(rewritten_lines)
+
 def decrypt_autoembed_response(data_json):
     """Decrypt AutoEmbed API response using PBKDF2 and AES-CBC."""
     try:
@@ -382,7 +527,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
         app.logger.error(f"Error fetching streams for server {sr}: {e}")
     return streams
 
-def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
+def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode, proxy_base_url):
     """Fetch streams from AutoEmbed API for one server."""
     sr = sr_info["id"]
     api_url = f"https://test.autoembed.cc/api/server?id={tmdb_id}&sr={sr}"
@@ -416,16 +561,13 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
         for candidate in url_candidates:
             if not candidate:
                 continue
+            proxy_url = _build_autoembed_proxy_url(proxy_base_url, candidate, headers)
+            if not proxy_url:
+                continue
             stream_obj = {
                 "name": f"AutoEmbed - {sr_info['name']}",
                 "title": f"[AutoEmbed] {sr_info['name']}",
-                "url": candidate,
-                "behaviorHints": {
-                    "notWebReady": True,
-                    "proxyHeaders": {
-                        "request": headers
-                    }
-                }
+                "url": proxy_url
             }
             if subtitles:
                 stream_obj["subtitles"] = subtitles
@@ -433,6 +575,95 @@ def fetch_autoembed_server_streams(tmdb_id, sr_info, season, episode):
     except Exception as e:
         app.logger.error(f"Error fetching AutoEmbed streams for server {sr}: {e}")
     return streams
+
+@app.route('/proxy/autoembed', methods=['GET', 'HEAD'])
+def proxy_autoembed():
+    payload_token = request.args.get("d")
+    signature = request.args.get("s")
+    target_url, proxy_headers = _decode_autoembed_proxy_payload(payload_token, signature)
+    if not target_url:
+        return jsonify({"error": "Invalid or expired proxy token"}), 403
+    if _is_blocked_proxy_target(target_url):
+        return jsonify({"error": "Blocked proxy target"}), 400
+
+    upstream_headers = dict(proxy_headers or {})
+    range_header = request.headers.get("Range")
+    if range_header:
+        upstream_headers["Range"] = range_header
+    accept_header = request.headers.get("Accept")
+    if accept_header:
+        upstream_headers["Accept"] = accept_header
+    upstream_headers["Accept-Encoding"] = "identity"
+
+    method = "HEAD" if request.method == "HEAD" else "GET"
+    upstream = None
+    last_error = None
+
+    for attempt in range(2):
+        try:
+            upstream = requests.request(
+                method,
+                target_url,
+                headers=upstream_headers,
+                stream=True,
+                timeout=PROXY_TIMEOUT,
+                allow_redirects=True,
+            )
+            if upstream.status_code in PROXY_RETRY_STATUSES and attempt == 0:
+                upstream.close()
+                upstream = None
+                continue
+            break
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt == 0:
+                continue
+
+    if upstream is None:
+        app.logger.error(f"AutoEmbed proxy failed for {target_url}: {last_error}")
+        return jsonify({"error": "Upstream fetch failed"}), 502
+
+    response_headers = {}
+    for key, value in upstream.headers.items():
+        lowered = key.lower()
+        if lowered in HOP_BY_HOP_HEADERS:
+            continue
+        if lowered in PASSTHROUGH_RESPONSE_HEADERS_LOWER:
+            response_headers[key] = value
+
+    status_code = upstream.status_code
+    if method == "HEAD":
+        upstream.close()
+        return Response(status=status_code, headers=response_headers)
+
+    content_type = str(upstream.headers.get("Content-Type", "")).lower()
+    if "mpegurl" in content_type or ".m3u8" in str(upstream.url).lower() or ".txt" in str(upstream.url).lower():
+        raw_body = upstream.content
+        body_text = raw_body.decode("utf-8", errors="ignore")
+        if body_text.lstrip().startswith("#EXTM3U"):
+            rewritten = _rewrite_manifest_for_proxy(
+                body_text,
+                upstream.url,
+                request.url_root.rstrip("/"),
+                proxy_headers,
+            )
+            upstream.close()
+            response_headers["Content-Type"] = "application/vnd.apple.mpegurl"
+            response_headers.pop("Content-Length", None)
+            return Response(rewritten, status=status_code, headers=response_headers)
+
+        upstream.close()
+        return Response(raw_body, status=status_code, headers=response_headers)
+
+    def _stream_body():
+        try:
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    return Response(stream_with_context(_stream_body()), status=status_code, headers=response_headers)
 
 @app.route('/')
 @app.route('/configure')
@@ -476,6 +707,7 @@ def stream(type, id):
         return jsonify({"streams": []})
 
     all_streams = []
+    proxy_base_url = request.url_root.rstrip("/")
     decryption_key = get_decryption_key()
     if decryption_key:
         # VidZee provider
@@ -492,7 +724,7 @@ def stream(type, id):
     # AutoEmbed provider
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = executor.map(
-            lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode),
+            lambda s: fetch_autoembed_server_streams(tmdb_id, s, season, episode, proxy_base_url),
             AUTOEMBED_SERVERS
         )
         for res in results:
