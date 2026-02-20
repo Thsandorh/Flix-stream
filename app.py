@@ -26,7 +26,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -373,7 +373,6 @@ def _probe_stream_url(url, is_hls):
     ]
 
     headers_to_try = hls_header_variants if is_hls else mp4_header_variants
-
     for headers in headers_to_try:
         response = None
         try:
@@ -409,6 +408,27 @@ def _probe_stream_url(url, is_hls):
 
     _health_cache_set(url, False, None)
     return False, None
+
+def _needs_stremio_proxy(decrypted_url, is_mp4, is_hls):
+    """Decide whether stream should be routed via Stremio local proxy."""
+    if is_mp4:
+        return False
+
+    if not is_hls:
+        return False
+
+    lowered = decrypted_url.lower()
+
+    # Avoid double-proxying URLs that are already proxy wrappers.
+    # Stremio desktop proxy can fail on these with AspNetCore.Proxy errors.
+    if "/proxy/m3u8/" in lowered:
+        return False
+
+    # 67streams typically requires anti-hotlink headers for HLS chunks.
+    if "67streams.online/" in lowered:
+        return True
+
+    return False
 
 def _decode_stream_id(raw_id):
     """Decode URL-encoded stream ids, including double-encoded variants."""
@@ -558,7 +578,7 @@ def fetch_server_streams(tmdb_id, sr_info, season, episode, decryption_key):
                     info_label = f"{label} | {size_label}" if size_label else label
 
                     behavior_hints = {}
-                    if not is_mp4:
+                    if _needs_stremio_proxy(decrypted_url, is_mp4=is_mp4, is_hls=is_hls):
                         behavior_hints = {
                             "notWebReady": True,
                             "proxyHeaders": {
