@@ -4,7 +4,7 @@ import base64
 import hashlib
 import time
 import requests
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse, parse_qs
 from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
@@ -29,7 +29,7 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -340,13 +340,25 @@ def _health_cache_get(url):
     cached = _HEALTH_CACHE.get(url)
     if not cached:
         return None
-    if time.time() - cached["ts"] > STREAM_HEALTHCHECK_CACHE_TTL:
+    now = time.time()
+    if now >= cached.get("exp_ts", 0):
         _HEALTH_CACHE.pop(url, None)
         return None
     return cached["ok"], cached["size"]
 
 def _health_cache_set(url, ok, size_bytes=None):
-    _HEALTH_CACHE[url] = {"ok": bool(ok), "size": size_bytes, "ts": time.time()}
+    now = time.time()
+    exp_ts = now + STREAM_HEALTHCHECK_CACHE_TTL
+    try:
+        query = parse_qs(urlparse(url).query)
+        token_expiry = query.get("e", [None])[0]
+        if token_expiry and str(token_expiry).isdigit():
+            # Signed links should never be cached beyond their own expiry.
+            exp_ts = min(exp_ts, float(int(token_expiry) - 5))
+    except Exception:
+        pass
+
+    _HEALTH_CACHE[url] = {"ok": bool(ok), "size": size_bytes, "exp_ts": exp_ts}
 
 def _probe_stream_url(url, is_hls):
     if not STREAM_HEALTHCHECK_ENABLED:
@@ -434,8 +446,12 @@ def _needs_stremio_proxy(decrypted_url, is_mp4, is_hls):
     if "/proxy/m3u8/" in lowered:
         return False
 
-    # 67streams typically requires anti-hotlink headers for HLS chunks.
-    if "67streams.online/" in lowered:
+    # Some HLS providers require anti-hotlink headers (Referer/Origin).
+    header_required_hosts = (
+        "67streams.online/",
+        "pinegrovedesignworks.shop/",
+    )
+    if any(host in lowered for host in header_required_hosts):
         return True
 
     return False
