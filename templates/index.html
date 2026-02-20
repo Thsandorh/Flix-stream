@@ -161,7 +161,7 @@
 
         <div class="meta">
             <div><b>Version:</b> <span id="addon-version">loading...</span></div>
-            <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code></div>
+            <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code>, <code>stmify:&lt;slug&gt;</code></div>
             <div><b>Tip:</b> after changing settings, reinstall from the generated manifest URL.</div>
         </div>
 
@@ -173,6 +173,7 @@
                     <label class="check-item"><input id="enable_autoembed" type="checkbox"> Enable AutoEmbed</label>
                     <label class="check-item"><input id="enable_vixsrc" type="checkbox"> Enable VixSrc</label>
                     <label class="check-item"><input id="enable_aniways" type="checkbox"> Enable Aniways/Kitsu IDs</label>
+                    <label class="check-item"><input id="enable_stmify" type="checkbox"> Enable Stmify Live TV</label>
                 </div>
             </section>
 
@@ -240,6 +241,7 @@
             cfg.enable_autoembed = !!cfg.enable_autoembed;
             cfg.enable_vixsrc = !!cfg.enable_vixsrc;
             cfg.enable_aniways = !!cfg.enable_aniways;
+            cfg.enable_stmify = !!cfg.enable_stmify;
             cfg.enable_wyzie = !!cfg.enable_wyzie;
             cfg.wyzie_hearing_impaired = !!cfg.wyzie_hearing_impaired;
             cfg.wyzie_apply_to_aniways_ids = !!cfg.wyzie_apply_to_aniways_ids;
@@ -262,6 +264,7 @@
                 enable_autoembed: document.getElementById("enable_autoembed").checked,
                 enable_vixsrc: document.getElementById("enable_vixsrc").checked,
                 enable_aniways: document.getElementById("enable_aniways").checked,
+                enable_stmify: document.getElementById("enable_stmify").checked,
                 enable_wyzie: document.getElementById("enable_wyzie").checked,
                 wyzie_hearing_impaired: document.getElementById("wyzie_hearing_impaired").checked,
                 wyzie_apply_to_aniways_ids: document.getElementById("wyzie_apply_to_aniways_ids").checked,
@@ -278,6 +281,7 @@
             document.getElementById("enable_autoembed").checked = cfg.enable_autoembed;
             document.getElementById("enable_vixsrc").checked = cfg.enable_vixsrc;
             document.getElementById("enable_aniways").checked = cfg.enable_aniways;
+            document.getElementById("enable_stmify").checked = cfg.enable_stmify;
             document.getElementById("enable_wyzie").checked = cfg.enable_wyzie;
             document.getElementById("wyzie_hearing_impaired").checked = cfg.wyzie_hearing_impaired;
             document.getElementById("wyzie_apply_to_aniways_ids").checked = cfg.wyzie_apply_to_aniways_ids;
@@ -367,6 +371,7 @@
                 "enable_autoembed",
                 "enable_vixsrc",
                 "enable_aniways",
+                "enable_stmify",
                 "enable_wyzie",
                 "wyzie_hearing_impaired",
                 "wyzie_apply_to_aniways_ids",

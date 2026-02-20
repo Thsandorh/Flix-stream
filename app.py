@@ -23,11 +23,14 @@ from flix_stream.runtime_config import (
     encode_addon_config,
     normalize_addon_config,
 )
+from flix_stream.stmify import get_stmify_catalog, get_stmify_stream
 from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
 from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 
 app = Flask(__name__)
+
+STMIFY_CATALOG = {"type": "series", "id": "stmify-live", "name": "Stmify Live TV"}
 
 
 def _support_stream():
@@ -77,6 +80,40 @@ def _resolve_tmdb_for_anime(source_prefix, source_id, anime_id):
 
 def _build_manifest(addon_config):
     manifest_data = dict(MANIFEST)
+    resources = list(manifest_data.get("resources") or [])
+    id_prefixes = list(manifest_data.get("idPrefixes") or [])
+    catalogs = list(manifest_data.get("catalogs") or [])
+
+    if addon_config.get("enable_stmify"):
+        if "catalog" not in resources:
+            resources.append("catalog")
+        if "stmify" not in id_prefixes:
+            id_prefixes.append("stmify")
+        if not any(
+            isinstance(catalog, dict)
+            and catalog.get("type") == STMIFY_CATALOG["type"]
+            and catalog.get("id") == STMIFY_CATALOG["id"]
+            for catalog in catalogs
+        ):
+            catalogs.append(dict(STMIFY_CATALOG))
+    else:
+        id_prefixes = [prefix for prefix in id_prefixes if prefix != "stmify"]
+        catalogs = [
+            catalog
+            for catalog in catalogs
+            if not (
+                isinstance(catalog, dict)
+                and catalog.get("type") == STMIFY_CATALOG["type"]
+                and catalog.get("id") == STMIFY_CATALOG["id"]
+            )
+        ]
+        if not catalogs:
+            resources = [resource for resource in resources if resource != "catalog"]
+
+    manifest_data["resources"] = resources
+    manifest_data["idPrefixes"] = id_prefixes
+    manifest_data["catalogs"] = catalogs
+
     logo = manifest_data.get("logo")
     if isinstance(logo, str) and logo.startswith("/"):
         base = request.url_root.rstrip("/")
@@ -91,6 +128,8 @@ def _build_manifest(addon_config):
         provider_labels.append("VixSrc")
     if addon_config.get("enable_aniways"):
         provider_labels.append("Aniways")
+    if addon_config.get("enable_stmify"):
+        provider_labels.append("Stmify")
     providers_text = ", ".join(provider_labels) if provider_labels else "none"
 
     subtitle_state = "enabled" if addon_config.get("enable_wyzie") else "disabled"
@@ -250,11 +289,59 @@ def manifest_with_config(config_token):
     return jsonify(_build_manifest(addon_config))
 
 
+def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
+    if catalog_type != "series" or catalog_id != STMIFY_CATALOG["id"]:
+        return jsonify({"metas": []})
+    if not addon_config.get("enable_stmify"):
+        return jsonify({"metas": []})
+
+    if skip is None:
+        try:
+            skip = int(request.args.get("skip", "0"))
+        except Exception:
+            skip = 0
+    skip = max(skip, 0)
+    page = (skip // 20) + 1
+    metas = get_stmify_catalog(page)
+    return jsonify({"metas": metas})
+
+
+@app.route("/catalog/<type>/<id>.json")
+def catalog(type, id):
+    addon_config = normalize_addon_config(DEFAULT_ADDON_CONFIG)
+    return _catalog_response(type, id, addon_config)
+
+
+@app.route("/catalog/<type>/<id>/skip=<int:skip>.json")
+def catalog_with_skip(type, id, skip):
+    addon_config = normalize_addon_config(DEFAULT_ADDON_CONFIG)
+    return _catalog_response(type, id, addon_config, skip=skip)
+
+
+@app.route("/<config_token>/catalog/<type>/<id>.json")
+def catalog_with_config(config_token, type, id):
+    addon_config = decode_addon_config_token(config_token)
+    return _catalog_response(type, id, addon_config)
+
+
+@app.route("/<config_token>/catalog/<type>/<id>/skip=<int:skip>.json")
+def catalog_with_config_and_skip(config_token, type, id, skip):
+    addon_config = decode_addon_config_token(config_token)
+    return _catalog_response(type, id, addon_config, skip=skip)
+
+
 def _stream_response(content_type, raw_id, addon_config):
     decoded_id = decode_stream_id(raw_id)
     parts = [p for p in decoded_id.split(":") if p]
     kind = (content_type or "").lower()
     prefix = (parts[0] if parts else "").lower()
+
+    if prefix == "stmify":
+        if not addon_config.get("enable_stmify"):
+            return jsonify({"streams": []})
+        stmify_streams = get_stmify_stream(decoded_id)
+        stmify_streams.append(_support_stream())
+        return jsonify({"streams": stmify_streams})
 
     if prefix in ("aniways", "kitsu"):
         if not addon_config.get("enable_aniways"):

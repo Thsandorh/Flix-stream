@@ -17,6 +17,7 @@ class TestRuntimeConfig(unittest.TestCase):
         raw = {
             "enable_wyzie": "false",
             "enable_vidzee": "0",
+            "enable_stmify": "off",
             "wyzie_languages": "en,hu,en,",
             "wyzie_formats": ["srt", "ASS", "srt"],
             "wyzie_source": "animetosho",
@@ -28,6 +29,7 @@ class TestRuntimeConfig(unittest.TestCase):
 
         self.assertFalse(cfg["enable_wyzie"])
         self.assertFalse(cfg["enable_vidzee"])
+        self.assertFalse(cfg["enable_stmify"])
         self.assertEqual(cfg["wyzie_languages"], ["en", "hu"])
         self.assertEqual(cfg["wyzie_formats"], ["srt", "ass"])
         self.assertEqual(cfg["wyzie_source"], "animetosho")

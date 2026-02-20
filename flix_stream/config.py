@@ -13,7 +13,7 @@ MANIFEST = {
     "id": "org.flickystream.addon",
     "version": "1.1.0",
     "name": "Flix-Streams",
-    "description": "Stream movies, series, and anime with provider controls and Wyzie subtitle integration.",
+    "description": "Stream movies, series, anime, and live TV with provider controls and Wyzie subtitle integration.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
