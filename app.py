@@ -30,13 +30,13 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.30",
+    "version": "1.0.31",
     "name": "Flix-Streams",
-    "description": "Stream movies and series from VidZee, AutoEmbed, and Aniways.",
+    "description": "Stream movies and series from VidZee, AutoEmbed, Aniways, and Kitsu IDs.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "aniways"],
+    "idPrefixes": ["tt", "aniways", "kitsu"],
     "catalogs": []
 }
 
@@ -74,6 +74,7 @@ ANIWAYS_COMMON_HEADERS = {
     "Referer": "https://aniways.xyz/",
     "Origin": "https://aniways.xyz",
 }
+KITSU_API_BASE = "https://kitsu.io/api/edge"
 
 LANG_MAP = {
     "English": "eng",
@@ -558,6 +559,141 @@ def fetch_aniways_streams(anime_id, episode_num):
     except Exception:
         return []
 
+def _normalize_title_for_match(value):
+    if not value:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+@lru_cache(maxsize=1024)
+def get_kitsu_anime_context(kitsu_id):
+    """Fetch Kitsu anime metadata and cross-site mappings for Aniways resolution."""
+    titles = []
+    mal_id = None
+    anilist_id = None
+
+    try:
+        anime_url = f"{KITSU_API_BASE}/anime/{kitsu_id}"
+        r_anime = requests.get(anime_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10)
+        if r_anime.status_code == 200:
+            payload = r_anime.json()
+            data = payload.get("data") if isinstance(payload, dict) else None
+            attrs = data.get("attributes") if isinstance(data, dict) else None
+            if isinstance(attrs, dict):
+                canonical = attrs.get("canonicalTitle")
+                if canonical:
+                    titles.append(canonical)
+                title_map = attrs.get("titles")
+                if isinstance(title_map, dict):
+                    for val in title_map.values():
+                        if val:
+                            titles.append(val)
+                abbreviated = attrs.get("abbreviatedTitles")
+                if isinstance(abbreviated, list):
+                    for val in abbreviated:
+                        if val:
+                            titles.append(val)
+    except Exception:
+        pass
+
+    try:
+        mappings_url = f"{KITSU_API_BASE}/anime/{kitsu_id}/mappings"
+        r_map = requests.get(mappings_url, headers={"User-Agent": COMMON_HEADERS["User-Agent"]}, timeout=10)
+        if r_map.status_code == 200:
+            payload = r_map.json()
+            data = payload.get("data") if isinstance(payload, dict) else []
+            if isinstance(data, list):
+                for mapping in data:
+                    attrs = mapping.get("attributes") if isinstance(mapping, dict) else None
+                    if not isinstance(attrs, dict):
+                        continue
+                    site = str(attrs.get("externalSite") or "").lower()
+                    ext_raw = attrs.get("externalId")
+                    try:
+                        ext_id = int(ext_raw)
+                    except Exception:
+                        continue
+
+                    if site == "myanimelist/anime" and mal_id is None:
+                        mal_id = ext_id
+                    elif site == "anilist/anime" and anilist_id is None:
+                        anilist_id = ext_id
+    except Exception:
+        pass
+
+    unique_titles = []
+    seen = set()
+    for title in titles:
+        token = str(title).strip()
+        if len(token) < 3:
+            continue
+        if token.lower() in seen:
+            continue
+        seen.add(token.lower())
+        unique_titles.append(token)
+
+    return {
+        "titles": unique_titles,
+        "mal_id": mal_id,
+        "anilist_id": anilist_id,
+    }
+
+def _fetch_aniways_search_page(query, page=1, items_per_page=20):
+    params = {
+        "q": query,
+        "page": page,
+        "itemsPerPage": items_per_page,
+    }
+    try:
+        r = requests.get(
+            f"{ANIWAYS_API_BASE}/anime/listings/search",
+            headers=ANIWAYS_COMMON_HEADERS,
+            params=params,
+            timeout=10
+        )
+        if r.status_code != 200:
+            return []
+        payload = r.json()
+        items = payload.get("items") if isinstance(payload, dict) else []
+        return items if isinstance(items, list) else []
+    except Exception:
+        return []
+
+@lru_cache(maxsize=1024)
+def resolve_aniways_id_from_kitsu(kitsu_id):
+    """Resolve Aniways anime id from a Kitsu anime id using mappings + title search."""
+    ctx = get_kitsu_anime_context(kitsu_id)
+    titles = ctx.get("titles") or []
+    mal_id = ctx.get("mal_id")
+    anilist_id = ctx.get("anilist_id")
+    if not titles:
+        return None
+
+    # First pass: exact external-id match (most reliable)
+    for title in titles[:6]:
+        items = _fetch_aniways_search_page(title, page=1, items_per_page=20)
+        for item in items:
+            item_mal = item.get("malId")
+            item_anilist = item.get("anilistId")
+            if mal_id is not None and item_mal == mal_id:
+                return item.get("id")
+            if anilist_id is not None and item_anilist == anilist_id:
+                return item.get("id")
+
+    # Second pass: title similarity fallback.
+    normalized_titles = {_normalize_title_for_match(t) for t in titles if t}
+    for title in titles[:4]:
+        items = _fetch_aniways_search_page(title, page=1, items_per_page=20)
+        for item in items:
+            names = [
+                item.get("ename"),
+                item.get("jname"),
+            ]
+            for name in names:
+                if _normalize_title_for_match(name) in normalized_titles:
+                    return item.get("id")
+
+    return None
+
 @app.route('/')
 @app.route('/configure')
 def index():
@@ -582,13 +718,22 @@ def stream(type, id):
     season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
     episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
 
-    if imdb_id.lower() == "aniways":
-        anime_id = parts[1] if len(parts) > 1 else None
-        aniways_episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
-        if not aniways_episode and len(parts) > 3:
+    if imdb_id.lower() in ("aniways", "kitsu"):
+        source_prefix = imdb_id.lower()
+        source_id = parts[1] if len(parts) > 1 else None
+        if len(parts) > 3:
             aniways_episode = _normalize_episode_part(parts[3])
+        else:
+            aniways_episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
 
-        if not anime_id or not aniways_episode:
+        if not source_id or not aniways_episode:
+            return jsonify({"streams": []})
+
+        anime_id = source_id
+        if source_prefix == "kitsu":
+            anime_id = resolve_aniways_id_from_kitsu(source_id)
+
+        if not anime_id:
             return jsonify({"streams": []})
 
         aniways_streams = fetch_aniways_streams(anime_id, aniways_episode)
