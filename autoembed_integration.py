@@ -1,18 +1,11 @@
 import json
 import base64
 import requests
-from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
 from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
-
-# Add these imports to your project
-# from Crypto.Cipher import AES
-# from Crypto.Protocol.KDF import PBKDF2
-# from Crypto.Hash import SHA256
-# from Crypto.Util.Padding import unpad
 
 SERVERS = [
     {"id": "2", "name": "Glory"},
