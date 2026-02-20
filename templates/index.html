@@ -18,6 +18,25 @@
         }
         h1 { margin-bottom: 20px; }
         p { margin-bottom: 30px; color: #ccc; }
+        .meta {
+            max-width: 760px;
+            text-align: left;
+            margin: 0 20px 24px;
+            background: #1c1c1c;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: #ddd;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .meta b { color: #fff; }
+        .meta code {
+            background: #2a2a2a;
+            border-radius: 4px;
+            padding: 2px 5px;
+            color: #fff;
+        }
         .button-container {
             display: flex;
             gap: 20px;
@@ -87,7 +106,15 @@
 </head>
 <body>
     <h1>Flix-Streams</h1>
-    <p>Stream movies and TV shows from Flix-Streams (VidZee).</p>
+    <p id="subtitle">Stream movies and TV shows from multiple providers.</p>
+
+    <div class="meta" id="meta-box">
+        <div><b>Providers:</b> VidZee + AutoEmbed</div>
+        <div><b>Supported types:</b> movie, series</div>
+        <div><b>ID format:</b> <code>tt...</code> and <code>tt...:season:episode</code> for series</div>
+        <div><b>Version:</b> <span id="addon-version">loading...</span></div>
+        <div><b>Note:</b> after updates, remove + reinstall addon in Stremio to refresh manifest cache.</div>
+    </div>
 
     <div class="button-container">
         <button id="install-btn" class="install-btn" onclick="installAddon()">Install on Stremio</button>
@@ -97,6 +124,25 @@
     <div id="toast" class="toast">Manifest URL copied to clipboard!</div>
 
     <script>
+        async function loadManifestMeta() {
+            const manifestUrl = getManifestUrl();
+            try {
+                const res = await fetch(manifestUrl, { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                const versionEl = document.getElementById('addon-version');
+                if (versionEl && data.version) {
+                    versionEl.textContent = data.version;
+                }
+                const subtitleEl = document.getElementById('subtitle');
+                if (subtitleEl && data.description) {
+                    subtitleEl.textContent = data.description;
+                }
+            } catch (e) {
+                console.error('Failed to load manifest metadata:', e);
+            }
+        }
+
         function getManifestUrl() {
             // Get the current URL and ensure we point to manifest.json correctly
             // If the URL ends with 'configure', we strip it off.
@@ -162,6 +208,8 @@
             x.className = "toast show";
             setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
         }
+
+        loadManifestMeta();
     </script>
 </body>
 </html>
