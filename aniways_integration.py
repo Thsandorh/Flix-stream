@@ -36,6 +36,10 @@ def extract_headers_from_proxy(proxy_url):
                     headers["Referer"] = headers_json["referer"]
                 if "origin" in headers_json:
                     headers["Origin"] = headers_json["origin"]
+
+                # IMPORTANT: Megaplay/Rapid-Cloud often rejects playback without a browser-like User-Agent
+                headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
                 return headers
     except Exception as e:
         print(f"  Error parsing proxy headers: {e}")
@@ -116,7 +120,7 @@ def fetch_aniways_stream(anime_id, episode_num):
 
                 if r_stream.status_code == 200:
                     stream_data = r_stream.json()
-                    print(f"  Response: {json.dumps(stream_data)}")
+                    # print(f"  Response: {json.dumps(stream_data)}") # Verbose
 
                     # Parse the nested source object
                     source_obj = stream_data.get("source")
