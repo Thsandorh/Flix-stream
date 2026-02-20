@@ -574,11 +574,16 @@ def fetch_aniways_streams(anime_id, episode_num):
                     proxy_hls = source_obj.get("proxyHls")
                     if isinstance(proxy_hls, str) and proxy_hls:
                         request_headers.update(extract_headers_from_proxy(proxy_hls))
-                        if proxy_hls.startswith("/"):
-                            candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
-                            candidate_urls.append(f"{ANIWAYS_API_BASE}{proxy_hls}")
-                        else:
-                            candidate_urls.append(proxy_hls)
+
+                        # Megaplay proxy links are often broken (404/405), skip them.
+                        is_megaplay_proxy = "/megaplay/" in proxy_hls
+
+                        if not is_megaplay_proxy:
+                            if proxy_hls.startswith("/"):
+                                candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
+                                candidate_urls.append(f"{ANIWAYS_API_BASE}{proxy_hls}")
+                            else:
+                                candidate_urls.append(proxy_hls)
 
                 # Keep order but remove duplicates.
                 unique_urls = []
@@ -653,7 +658,9 @@ def _is_megaplay_url(url):
     except Exception:
         return False
 
-    return host == "megaplay.link" or host.endswith(".megaplay.link")
+    return (host == "megaplay.link" or host.endswith(".megaplay.link") or
+            host == "rapid-cloud.co" or host.endswith(".rapid-cloud.co") or
+            host == "stormshade84.live" or host.endswith(".stormshade84.live"))
 
 def _is_likely_aniways_stream_url(url):
     """Filter obviously invalid Aniways candidates without probing upstream."""
