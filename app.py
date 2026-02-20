@@ -27,7 +27,7 @@ from flix_stream.runtime_config import (
     encode_addon_config,
     normalize_addon_config,
 )
-from flix_stream.stmify import get_stmify_catalog, get_stmify_stream
+from flix_stream.stmify import get_stmify_catalog, get_stmify_meta, get_stmify_stream
 from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
 from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
@@ -107,6 +107,8 @@ def _build_manifest(addon_config):
     if addon_config.get("enable_stmify"):
         if "catalog" not in resources:
             resources.append("catalog")
+        if "meta" not in resources:
+            resources.append("meta")
         if "stmify" not in id_prefixes:
             id_prefixes.append("stmify")
         if not any(
@@ -129,6 +131,7 @@ def _build_manifest(addon_config):
         ]
         if not catalogs:
             resources = [resource for resource in resources if resource != "catalog"]
+            resources = [resource for resource in resources if resource != "meta"]
 
     manifest_data["resources"] = resources
     manifest_data["idPrefixes"] = id_prefixes
@@ -325,6 +328,22 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
     return jsonify({"metas": metas})
 
 
+def _meta_response(content_type, raw_id, addon_config):
+    if content_type != "series":
+        return jsonify({"meta": None}), 404
+    if not addon_config.get("enable_stmify"):
+        return jsonify({"meta": None}), 404
+
+    decoded_id = decode_stream_id(raw_id)
+    if not str(decoded_id).startswith("stmify:"):
+        return jsonify({"meta": None}), 404
+
+    meta = get_stmify_meta(decoded_id)
+    if not isinstance(meta, dict):
+        return jsonify({"meta": None}), 404
+    return jsonify({"meta": meta})
+
+
 @app.route("/catalog/<type>/<id>.json")
 def catalog(type, id):
     addon_config = normalize_addon_config(DEFAULT_ADDON_CONFIG)
@@ -347,6 +366,18 @@ def catalog_with_config(config_token, type, id):
 def catalog_with_config_and_skip(config_token, type, id, skip):
     addon_config = decode_addon_config_token(config_token)
     return _catalog_response(type, id, addon_config, skip=skip)
+
+
+@app.route("/meta/<type>/<path:id>.json")
+def meta(type, id):
+    addon_config = normalize_addon_config(DEFAULT_ADDON_CONFIG)
+    return _meta_response(type, id, addon_config)
+
+
+@app.route("/<config_token>/meta/<type>/<path:id>.json")
+def meta_with_config(config_token, type, id):
+    addon_config = decode_addon_config_token(config_token)
+    return _meta_response(type, id, addon_config)
 
 
 def _stream_response(content_type, raw_id, addon_config):

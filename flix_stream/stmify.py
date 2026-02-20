@@ -79,25 +79,41 @@ def get_stmify_catalog(skip=0, limit=20):
     return metas
 
 
-def get_stmify_stream(stmify_id):
+def _normalize_stmify_id(stmify_id):
     raw_id = str(stmify_id or "").strip()
     if not raw_id.startswith("stmify:"):
-        return []
-
-    slug = raw_id.split(":", 1)[1].strip()
+        return None, None
+    remainder = raw_id.split(":", 1)[1].strip()
+    if not remainder:
+        return None, None
+    slug = remainder.split(":", 1)[0].strip()
     if not slug:
-        return []
+        return None, None
+    return f"stmify:{slug}", slug
+
+
+def get_stmify_channel(stmify_id):
+    canonical_id, slug = _normalize_stmify_id(stmify_id)
+    if not canonical_id:
+        return None, None
 
     channels = load_channels()
     channel = next(
         (
             item
             for item in channels
-            if isinstance(item, dict) and (item.get("slug") == slug or item.get("id") == raw_id)
+            if isinstance(item, dict) and (item.get("slug") == slug or item.get("id") == canonical_id)
         ),
         None,
     )
     if not isinstance(channel, dict):
+        return None, None
+    return canonical_id, channel
+
+
+def get_stmify_stream(stmify_id):
+    canonical_id, channel = get_stmify_channel(stmify_id)
+    if not canonical_id or not channel:
         return []
 
     stream_url = channel.get("stream_url")
@@ -107,7 +123,7 @@ def get_stmify_stream(stmify_id):
     return [
         {
             "name": "Stmify",
-            "title": f"Live: {channel.get('name') or slug.replace('-', ' ').title()}",
+            "title": f"Live: {channel.get('name') or canonical_id.split(':', 1)[1].replace('-', ' ').title()}",
             "url": stream_url,
             "behaviorHints": {
                 "notWebReady": True,
@@ -121,3 +137,29 @@ def get_stmify_stream(stmify_id):
             },
         }
     ]
+
+
+def get_stmify_meta(stmify_id):
+    canonical_id, channel = get_stmify_channel(stmify_id)
+    if not canonical_id or not channel:
+        return None
+
+    name = str(channel.get("name") or canonical_id).strip()
+    description = str(channel.get("description") or "").strip() or f"Watch {name} live on Stmify."
+    return {
+        "id": canonical_id,
+        "type": "series",
+        "name": name,
+        "poster": channel.get("poster"),
+        "background": channel.get("poster"),
+        "description": description,
+        "genres": ["Live TV"],
+        "videos": [
+            {
+                "id": canonical_id,
+                "title": "Live",
+                "season": 1,
+                "episode": 1,
+            }
+        ],
+    }
