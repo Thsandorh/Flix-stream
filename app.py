@@ -13,8 +13,10 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Hash import SHA256
 from Crypto.Util.Padding import unpad
 from concurrent.futures import ThreadPoolExecutor
+from stmify_integration import stmify_bp, get_stmify_stream
 
 app = Flask(__name__)
+app.register_blueprint(stmify_bp)
 
 @app.after_request
 def after_request(response):
@@ -36,8 +38,10 @@ MANIFEST = {
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "aniways", "kitsu"],
-    "catalogs": []
+    "idPrefixes": ["tt", "aniways", "kitsu", "stmify"],
+    "catalogs": [
+        {"type": "series", "id": "stmify-live", "name": "Stmify Live TV"}
+    ]
 }
 
 SERVERS = [
@@ -1023,6 +1027,9 @@ def stream(type, id):
     kind = (type or "").lower()
     season = _normalize_episode_part(parts[1] if len(parts) > 1 else None)
     episode = _normalize_episode_part(parts[2] if len(parts) > 2 else None)
+
+    if imdb_id.lower().startswith("stmify"):
+        return jsonify({"streams": get_stmify_stream(decoded_id)})
 
     if imdb_id.lower() in ("aniways", "kitsu"):
         source_prefix = imdb_id.lower()
