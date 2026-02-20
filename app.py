@@ -602,7 +602,11 @@ def fetch_aniways_streams(anime_id, episode_num):
 
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
-                    request_headers.update(extra_headers)
+                    normalized_extra = {str(k).lower(): v for k, v in extra_headers.items()}
+                    for src, dst in (("referer", "Referer"), ("origin", "Origin"), ("user-agent", "User-Agent"), ("user_agent", "User-Agent")):
+                        val = normalized_extra.get(src)
+                        if isinstance(val, str) and val:
+                            request_headers[dst] = val
 
                 subtitles = []
                 for track in (stream_data.get("tracks") or []):
