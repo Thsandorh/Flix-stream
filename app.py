@@ -633,17 +633,17 @@ def fetch_aniways_streams(anime_id, episode_num):
 
                     proxy_hls = source_obj.get("proxyHls")
                     if isinstance(proxy_hls, str) and proxy_hls:
-                        if proxy_hls.startswith("/"):
-                            candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
-                            candidate_urls.append(f"{ANIWAYS_API_BASE}{proxy_hls}")
-                        else:
-                            candidate_urls.append(proxy_hls)
-
                         resolved_proxy_url, resolved_proxy_headers = _extract_aniways_proxy_hls_details(proxy_hls)
                         if resolved_proxy_url:
                             candidate_urls.append(resolved_proxy_url)
-                        if resolved_proxy_headers:
-                            proxy_hls_headers.update(resolved_proxy_headers)
+                            if resolved_proxy_headers:
+                                proxy_hls_headers.update(resolved_proxy_headers)
+                        else:
+                            # Fallback only if we cannot decode proxyHls.
+                            if proxy_hls.startswith("/"):
+                                candidate_urls.append(f"https://aniways.xyz{proxy_hls}")
+                            else:
+                                candidate_urls.append(proxy_hls)
 
                 # Keep order but remove duplicates.
                 unique_urls = []
