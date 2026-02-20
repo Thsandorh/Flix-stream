@@ -5,6 +5,7 @@ import hashlib
 import time
 import requests
 from urllib.parse import unquote
+from functools import lru_cache
 from flask import Flask, jsonify, render_template
 from Crypto.Cipher import AES
 from concurrent.futures import ThreadPoolExecutor
@@ -20,11 +21,15 @@ def after_request(response):
 
 # Config
 # For a production addon, these should be moved to environment variables.
+TMDB_TOKEN = os.environ.get(
+    "TMDB_TOKEN",
+    "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0YzY4ZTRjYjBhMDM4OTk0MTliNmVmYTZiOGJjOGJiZSIsIm5iZiI6MTcyNzUwNjM2NS40NDQxNjUsInN1YiI6IjY2NWQ5YmMwYTVlMDU0MzUwMTQ5MWUwNSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.8OL7WQIZGWr9tRfmSkRFIsaf1Wy0ksrOGDCB4KcocW4",
+)
 MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.0.5",
+    "version": "1.0.7",
     "name": "Flix-Streams",
     "description": "Stream movies and TV shows from Flix-Streams (VidZee).",
     "resources": ["stream"],
@@ -156,6 +161,80 @@ def decrypt_link(encrypted_link, key_str):
         return decrypted[:-padding_len].decode()
     except Exception:
         return None
+
+@lru_cache(maxsize=2048)
+def get_tmdb_id(imdb_id, content_type=None):
+    """Maps IMDb id to TMDB id."""
+    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+    kind = (content_type or "").lower()
+
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        movie_results = data.get("movie_results") or []
+        tv_results = data.get("tv_results") or []
+        tv_episode_results = data.get("tv_episode_results") or []
+        tv_season_results = data.get("tv_season_results") or []
+        tv_season_show_id = next(
+            (item.get("show_id") for item in tv_season_results if item.get("show_id")),
+            None,
+        )
+
+        if kind in ("series", "tv"):
+            if tv_results:
+                return tv_results[0]["id"]
+            if tv_episode_results and tv_episode_results[0].get("show_id"):
+                return tv_episode_results[0]["show_id"]
+            if tv_season_show_id:
+                return tv_season_show_id
+            return None
+
+        if movie_results:
+            return movie_results[0]["id"]
+        if tv_results:
+            return tv_results[0]["id"]
+        if tv_episode_results and tv_episode_results[0].get("show_id"):
+            return tv_episode_results[0]["show_id"]
+        if tv_season_show_id:
+            return tv_season_show_id
+    except Exception as e:
+        app.logger.error(f"TMDB mapping failed for {imdb_id}: {e}")
+    return None
+
+@lru_cache(maxsize=2048)
+def get_series_context_from_imdb(imdb_id):
+    """Resolves show/season/episode context from an IMDb episode id."""
+    url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+
+        tv_episode_results = data.get("tv_episode_results") or []
+        if tv_episode_results:
+            episode_info = tv_episode_results[0]
+            return (
+                episode_info.get("show_id"),
+                episode_info.get("season_number"),
+                episode_info.get("episode_number"),
+            )
+
+        tv_season_results = data.get("tv_season_results") or []
+        if tv_season_results:
+            season_info = tv_season_results[0]
+            return (
+                season_info.get("show_id"),
+                season_info.get("season_number"),
+                None,
+            )
+    except Exception as e:
+        app.logger.error(f"TMDB series context lookup failed for {imdb_id}: {e}")
+
+    return None, None, None
 
 def _extract_season_episode(tokens):
     """Extract season/episode from tokenized id tail."""
@@ -359,16 +438,28 @@ def _decode_stream_id(raw_id):
         decoded = next_decoded
     return decoded
 
-def parse_stream_id(_content_type, raw_id):
-    """Parses Stremio stream id and resolves IMDb id + season/episode."""
+def parse_stream_id(content_type, raw_id):
+    """Parses IMDb-based Stremio id and resolves TMDB id + season/episode."""
     decoded_id = _decode_stream_id(raw_id)
     parts = [token for token in re.split(r'[:/]', decoded_id) if token]
 
     # IMDb format: tt1234567[:season:episode]
     if parts and parts[0].startswith('tt'):
-        content_id = parts[0]
+        imdb_id = parts[0]
         season, episode = _extract_season_episode(parts[1:])
-        return content_id, season, episode
+        tmdb_id = get_tmdb_id(imdb_id, content_type)
+        kind = (content_type or "").lower()
+
+        if kind in ("series", "tv") and (not season or not episode or not tmdb_id):
+            hint_tmdb_id, hint_season, hint_episode = get_series_context_from_imdb(imdb_id)
+            if not tmdb_id:
+                tmdb_id = hint_tmdb_id
+            if not season and hint_season is not None:
+                season = str(hint_season)
+            if not episode and hint_episode is not None:
+                episode = str(hint_episode)
+
+        return tmdb_id, season, episode
 
     return None, None, None
 
