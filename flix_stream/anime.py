@@ -186,7 +186,7 @@ def fetch_aniways_streams(anime_id, episode_num):
                         break
 
                 if response_stream is None:
-                    continue
+                    return streams
 
                 stream_data = response_stream.json()
                 source_obj = stream_data.get("source") if isinstance(stream_data.get("source"), dict) else {}
@@ -226,7 +226,7 @@ def fetch_aniways_streams(anime_id, episode_num):
                     seen_urls.add(token)
                     unique_urls.append(token)
                 if not unique_urls:
-                    continue
+                    return streams
 
                 # Prefer direct upstream media URLs over Aniways API proxy URLs when both exist.
                 preferred_urls = [url for url in unique_urls if not is_aniways_api_proxy_url(url)]
