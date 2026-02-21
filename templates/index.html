@@ -215,6 +215,52 @@
             outline: 3px solid var(--focus-ring);
             outline-offset: 2px;
         }
+
+        /* Country Picker */
+        .country-picker-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .search-box {
+            position: relative;
+        }
+        .country-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #2f456d;
+            border-radius: 9px;
+            background: #132038;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 4px;
+        }
+        .country-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.1s;
+        }
+        .country-item:hover {
+            background: #1d2c4d;
+        }
+        .country-item.selected {
+            background: #2d4369;
+            border: 1px solid #4a74b5;
+        }
+        .country-flag {
+            width: 20px;
+            height: 15px;
+            object-fit: cover;
+            border-radius: 2px;
+            background-color: #000;
+        }
+
         @media (max-width: 760px) {
             .page {
                 padding: 22px max(14px, env(safe-area-inset-right)) 20px max(14px, env(safe-area-inset-left));
@@ -344,7 +390,7 @@
 
         <div class="meta">
             <div><b>Version:</b> <span id="addon-version">loading...</span></div>
-            <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code>, <code>stmify:&lt;slug&gt;</code></div>
+            <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code>, <code>famelack:&lt;code&gt;:&lt;nanoid&gt;</code></div>
             <div><b>Tip:</b> after changing settings, reinstall from the generated manifest URL.</div>
         </div>
 
@@ -372,9 +418,22 @@
                     <label class="check-item"><input id="enable_autoembed" type="checkbox"> Enable AutoEmbed</label>
                     <label class="check-item"><input id="enable_vixsrc" type="checkbox"> Enable VixSrc</label>
                     <label class="check-item"><input id="enable_aniways" type="checkbox"> Enable Aniways/Kitsu IDs</label>
-                    <label class="check-item"><input id="enable_stmify" type="checkbox"> Enable Live TV</label>
                 </div>
-                <div class="hint">Live TV channels: <b>{{ stmify_channel_count }}</b></div>
+            </section>
+
+            <section class="card">
+                <h2>Live TV Channels</h2>
+                <p style="font-size: 13px; margin-bottom: 10px;">Select countries to include in your catalog.</p>
+                <div class="country-picker-container">
+                    <div class="search-box">
+                        <input type="text" id="country_search" placeholder="Search countries..." oninput="filterCountries()">
+                    </div>
+                    <div id="country_list" class="country-list">
+                        <!-- Populated via JS -->
+                        <div style="padding: 10px; color: #889;">Loading countries...</div>
+                    </div>
+                    <div class="hint">Selected: <span id="selected_country_count">0</span></div>
+                </div>
             </section>
 
             <section class="card">
@@ -450,6 +509,9 @@
             "en", "hu", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "tr", "ar", "hi",
         ];
 
+        let ALL_COUNTRIES = [];
+        let SELECTED_COUNTRIES = new Set();
+
         function splitCsv(value) {
             return String(value || "")
                 .split(",")
@@ -463,7 +525,7 @@
             cfg.enable_autoembed = !!cfg.enable_autoembed;
             cfg.enable_vixsrc = !!cfg.enable_vixsrc;
             cfg.enable_aniways = !!cfg.enable_aniways;
-            cfg.enable_stmify = !!cfg.enable_stmify;
+            cfg.famelack_countries = Array.from(SELECTED_COUNTRIES);
             cfg.enable_wyzie = !!cfg.enable_wyzie;
             cfg.wyzie_hearing_impaired = !!cfg.wyzie_hearing_impaired;
             cfg.wyzie_apply_to_aniways_ids = !!cfg.wyzie_apply_to_aniways_ids;
@@ -508,7 +570,7 @@
                 enable_autoembed: document.getElementById("enable_autoembed").checked,
                 enable_vixsrc: document.getElementById("enable_vixsrc").checked,
                 enable_aniways: document.getElementById("enable_aniways").checked,
-                enable_stmify: document.getElementById("enable_stmify").checked,
+                famelack_countries: Array.from(SELECTED_COUNTRIES), // This is handled by normalizeConfig but explicit here
                 enable_wyzie: document.getElementById("enable_wyzie").checked,
                 wyzie_hearing_impaired: document.getElementById("wyzie_hearing_impaired").checked,
                 wyzie_apply_to_aniways_ids: document.getElementById("wyzie_apply_to_aniways_ids").checked,
@@ -525,7 +587,10 @@
             document.getElementById("enable_autoembed").checked = cfg.enable_autoembed;
             document.getElementById("enable_vixsrc").checked = cfg.enable_vixsrc;
             document.getElementById("enable_aniways").checked = cfg.enable_aniways;
-            document.getElementById("enable_stmify").checked = cfg.enable_stmify;
+
+            SELECTED_COUNTRIES = new Set(cfg.famelack_countries || []);
+            renderCountries(); // Re-render to show selection
+
             document.getElementById("enable_wyzie").checked = cfg.enable_wyzie;
             document.getElementById("wyzie_hearing_impaired").checked = cfg.wyzie_hearing_impaired;
             document.getElementById("wyzie_apply_to_aniways_ids").checked = cfg.wyzie_apply_to_aniways_ids;
@@ -624,7 +689,6 @@
                 "enable_autoembed",
                 "enable_vixsrc",
                 "enable_aniways",
-                "enable_stmify",
                 "enable_wyzie",
                 "wyzie_hearing_impaired",
                 "wyzie_apply_to_aniways_ids",
@@ -648,7 +712,75 @@
             });
         }
 
-        applyConfigToForm(INITIAL_CONFIG);
+        // Country Logic
+        async function fetchCountries() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/famelack/countries`);
+                if (!res.ok) throw new Error("Failed to fetch countries");
+                ALL_COUNTRIES = await res.json();
+                renderCountries();
+            } catch (err) {
+                console.error(err);
+                document.getElementById("country_list").innerHTML = '<div style="padding:10px;color:red;">Failed to load countries.</div>';
+            }
+        }
+
+        function renderCountries() {
+            const listEl = document.getElementById("country_list");
+            const search = document.getElementById("country_search").value.toLowerCase();
+
+            listEl.innerHTML = "";
+            let count = 0;
+
+            ALL_COUNTRIES.forEach(c => {
+                if (search && !c.name.toLowerCase().includes(search) && !c.code.toLowerCase().includes(search)) {
+                    return;
+                }
+
+                const isSelected = SELECTED_COUNTRIES.has(c.code.toLowerCase());
+                const div = document.createElement("div");
+                div.className = `country-item ${isSelected ? "selected" : ""}`;
+                div.onclick = () => toggleCountry(c.code.toLowerCase());
+
+                const img = document.createElement("img");
+                img.src = `https://flagcdn.com/w40/${c.code.toLowerCase()}.png`;
+                img.className = "country-flag";
+
+                const span = document.createElement("span");
+                span.textContent = c.name;
+
+                div.appendChild(img);
+                div.appendChild(span);
+                listEl.appendChild(div);
+                count++;
+            });
+
+            if (count === 0) {
+                listEl.innerHTML = '<div style="padding:10px;color:#889;">No countries found.</div>';
+            }
+
+            document.getElementById("selected_country_count").textContent = SELECTED_COUNTRIES.size;
+        }
+
+        function toggleCountry(code) {
+            if (SELECTED_COUNTRIES.has(code)) {
+                SELECTED_COUNTRIES.delete(code);
+            } else {
+                SELECTED_COUNTRIES.add(code);
+            }
+            renderCountries();
+            refreshPreviewAndMeta();
+        }
+
+        function filterCountries() {
+            renderCountries();
+        }
+
+        // Init
+        fetchCountries().then(() => {
+             applyConfigToForm(INITIAL_CONFIG);
+        });
+
         bindAutoRefresh();
         refreshPreviewAndMeta();
     </script>
