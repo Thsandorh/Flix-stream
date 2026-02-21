@@ -20,7 +20,7 @@ DEFAULT_ADDON_CONFIG = {
     "enable_autoembed": True,
     "enable_vixsrc": True,
     "enable_aniways": True,
-    "enable_stmify": True,
+    "famelack_countries": [], # List of country codes
     "enable_wyzie": True,
     "wyzie_languages": ["en"],
     "wyzie_formats": ["srt", "ass"],
@@ -37,7 +37,7 @@ def _default_config_copy():
         "enable_autoembed": DEFAULT_ADDON_CONFIG["enable_autoembed"],
         "enable_vixsrc": DEFAULT_ADDON_CONFIG["enable_vixsrc"],
         "enable_aniways": DEFAULT_ADDON_CONFIG["enable_aniways"],
-        "enable_stmify": DEFAULT_ADDON_CONFIG["enable_stmify"],
+        "famelack_countries": list(DEFAULT_ADDON_CONFIG["famelack_countries"]),
         "enable_wyzie": DEFAULT_ADDON_CONFIG["enable_wyzie"],
         "wyzie_languages": list(DEFAULT_ADDON_CONFIG["wyzie_languages"]),
         "wyzie_formats": list(DEFAULT_ADDON_CONFIG["wyzie_formats"]),
@@ -96,7 +96,12 @@ def normalize_addon_config(raw_config):
     cfg["enable_autoembed"] = _to_bool(raw_config.get("enable_autoembed"), cfg["enable_autoembed"])
     cfg["enable_vixsrc"] = _to_bool(raw_config.get("enable_vixsrc"), cfg["enable_vixsrc"])
     cfg["enable_aniways"] = _to_bool(raw_config.get("enable_aniways"), cfg["enable_aniways"])
-    cfg["enable_stmify"] = _to_bool(raw_config.get("enable_stmify"), cfg["enable_stmify"])
+
+    # Handle famelack_countries
+    countries = raw_config.get("famelack_countries")
+    if countries:
+        cfg["famelack_countries"] = _parse_csv_list(countries, lower=True)
+
     cfg["enable_wyzie"] = _to_bool(raw_config.get("enable_wyzie"), cfg["enable_wyzie"])
     cfg["wyzie_hearing_impaired"] = _to_bool(
         raw_config.get("wyzie_hearing_impaired"),
