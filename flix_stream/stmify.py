@@ -16,11 +16,6 @@ logger = logging.getLogger(__name__)
 
 STMIFY_BASE_URL = "https://stmify.com"
 CDN_BASE_URL = "https://cdn.stmify.com"
-JSON_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "static",
-    "stmify_channels.json",
-)
 CLEARKEY_SCHEME_ID = "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b"
 DASHIF_NAMESPACE = "https://dashif.org/guidelines/clear-key"
 LIVE_RESOLVE_TTL_SECONDS = 300
@@ -31,14 +26,6 @@ COMMON_HEADERS = {
     "Origin": STMIFY_BASE_URL,
 }
 _LIVE_STREAM_CACHE = {}
-
-
-def _normalize_int(value, default):
-    try:
-        parsed = int(value)
-    except Exception:
-        return default
-    return parsed
 
 
 def _is_mpd_stream_url(stream_url):
@@ -87,55 +74,102 @@ def _hex_to_uuid(value):
     ).upper()
 
 
-def _load_channels_data():
-    try:
-        with open(JSON_PATH, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except Exception as exc:
-        logger.warning("Failed to load Stmify static catalog: %s", exc)
-        return []
-    return payload if isinstance(payload, list) else []
-
-
-@lru_cache(maxsize=1)
 def load_channels():
-    return _load_channels_data()
+    # Deprecated: Static loading removed.
+    return []
 
 
-def get_stmify_catalog(skip=0, limit=20):
-    skip = max(_normalize_int(skip, 0), 0)
-    limit = max(_normalize_int(limit, 20), 1)
-    channels = list(load_channels())
-    channels.sort(key=lambda item: 0 if isinstance(item, dict) and item.get("stream_url") else 1)
+def scrape_stmify_category(path, page=1):
+    base_url = f"{STMIFY_BASE_URL}/{path}/"
+    if page > 1:
+        base_url = f"{base_url}page/{page}/"
 
-    metas = []
-    for channel in channels[skip : skip + limit]:
-        if not isinstance(channel, dict):
+    try:
+        resp = requests.get(base_url, headers=COMMON_HEADERS, timeout=10)
+    except Exception as exc:
+        logger.error("Stmify scrape failed for %s: %s", path, exc)
+        return []
+
+    if resp.status_code != 200:
+        return []
+
+    html = str(resp.text or "")
+    seen_slugs = set()
+    results = []
+
+    # Regex to capture <a href=".../live-tv/slug/">...</a> content
+    # We look for links pointing to /live-tv/{slug}
+    # This pattern captures the slug and the inner HTML of the anchor.
+    # We assume the grid items wrap the image and/or title in the anchor.
+    pattern = re.compile(
+        r'<a\s+[^>]*href=["\'](?:https?://stmify\.com)?/live-tv/([^/"\']+)/?["\'][^>]*>(.*?)</a>',
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    for match in pattern.finditer(html):
+        slug = match.group(1).strip()
+        if not slug or slug in seen_slugs:
             continue
-        channel_id = str(channel.get("id") or "").strip()
-        if not channel_id:
-            slug = str(channel.get("slug") or "").strip()
-            if not slug:
-                continue
-            channel_id = f"stmify:{slug}"
-        name = str(channel.get("name") or "").strip() or channel_id
-        description = str(channel.get("description") or "").strip()
-        if not description:
-            description = f"Watch {name} live on Stmify."
-        if channel.get("stream_url"):
-            description = f"{description}\n(Stream Available)"
-        else:
-            description = f"{description}\n(No Stream)"
-        metas.append(
-            {
-                "id": channel_id,
-                "type": "series",
-                "name": name,
-                "poster": channel.get("poster"),
-                "description": description,
-            }
-        )
-    return metas
+
+        content = match.group(2)
+
+        # Attempt to find poster image
+        # Check for data-src or data-lazy-src first as they likely contain the real image
+        img_match = re.search(r'(?:data-src|data-lazy-src|src)=["\']([^"\']+)["\']', content)
+        poster = img_match.group(1) if img_match else None
+
+        # If we caught a base64 placeholder, try to find a better attribute
+        if poster and poster.startswith("data:"):
+             better_match = re.search(r'(?:data-src|data-lazy-src)=["\']([^"\']+)["\']', content)
+             if better_match:
+                 poster = better_match.group(1)
+
+        # Attempt to find title text (strip tags)
+        text = re.sub(r'<[^>]+>', '', content).strip()
+
+        # If text is empty or just whitespace, fallback to slug
+        if not text:
+            # Try alt text from image
+            if img_match:
+                 alt_match = re.search(r'alt=["\']([^"\']+)["\']', content)
+                 if alt_match:
+                     text = alt_match.group(1).strip()
+
+        if not text:
+            text = slug.replace("-", " ").title()
+
+        seen_slugs.add(slug)
+        results.append({
+            "id": f"stmify:{slug}",
+            "type": "series",
+            "name": text,
+            "poster": poster,
+            "description": f"Watch {text} on Stmify",
+        })
+
+    return results
+
+
+def get_stmify_catalog(catalog_id, skip=0):
+    # Map catalog IDs to URL paths
+    CATALOG_MAP = {
+        "stmify-trending": "trending",
+        "stmify-movies": "tv-genre/movies",
+        "stmify-sports": "tv-genre/sports",
+        "stmify-news": "tv-genre/news",
+        "stmify-kids": "tv-genre/kids",
+        "stmify-music": "tv-genre/music",
+        "stmify-entertainment": "tv-genre/entertainment",
+        "stmify-infotainment": "tv-genre/infotainment",
+        "stmify-4k": "4k",
+    }
+
+    path = CATALOG_MAP.get(catalog_id)
+    if not path:
+        return []
+
+    page = (skip // 20) + 1
+    return scrape_stmify_category(path, page=page)
 
 
 def _normalize_stmify_id(stmify_id):
@@ -152,23 +186,12 @@ def _normalize_stmify_id(stmify_id):
 
 
 def get_stmify_channel(stmify_id):
+    # This now just returns a dummy object based on slug, as we scrape dynamically.
     canonical_id, slug = _normalize_stmify_id(stmify_id)
     if not canonical_id:
         return None, None
 
-    channels = load_channels()
-    channel = next(
-        (
-            item
-            for item in channels
-            if isinstance(item, dict) and (item.get("slug") == slug or item.get("id") == canonical_id)
-        ),
-        None,
-    )
-    if isinstance(channel, dict):
-        return canonical_id, channel
-
-    # Fallback for slugs that are currently missing from static JSON but exist on Stmify.
+    # Fallback/Default for dynamic slugs.
     if re.fullmatch(r"[a-z0-9-]+", slug):
         return canonical_id, {
             "id": canonical_id,
@@ -305,18 +328,9 @@ def get_stmify_stream(stmify_id):
     k1 = (live_info or {}).get("k1") or channel.get("k1")
     k2 = (live_info or {}).get("k2") or channel.get("k2")
 
-    if _is_mpd_stream_url(stream_url) and _is_valid_hex_key(k1) and _is_valid_hex_key(k2):
-        proxy_url = _build_stmify_proxy_mpd_url(slug)
-        return [
-            {
-                "name": "Stmify (DRM)",
-                "title": f"Live: {channel_name}",
-                "url": proxy_url,
-                "behaviorHints": {
-                    "notWebReady": True,
-                },
-            }
-        ]
+    if _is_mpd_stream_url(stream_url):
+        # User requested NO DRM links. Skip MPD streams.
+        return []
 
     if _is_m3u8_stream_url(stream_url) and _needs_stmify_hls_proxy(stream_url):
         return [
