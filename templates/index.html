@@ -16,12 +16,14 @@
             --primary: #2ec5a7;
             --primary-hover: #28b095;
             --chip: #1a2740;
+            --focus-ring: #7fc4ff;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100vh;
             font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.45;
             color: var(--text);
             background:
                 radial-gradient(1000px 600px at 15% -10%, #1b3a5f33, transparent 70%),
@@ -46,6 +48,55 @@
             padding: 16px;
             font-size: 14px;
             line-height: 1.5;
+        }
+        .community {
+            margin: 0 0 16px;
+            background: linear-gradient(180deg, #141f33, #101829);
+            border: 1px solid #2d4369;
+            border-radius: 14px;
+            padding: 14px;
+        }
+        .community-head {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+        .community-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+        }
+        .community-card {
+            background: linear-gradient(160deg, #162544, #132036);
+            border: 1px solid #355282;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .community-card h3 {
+            margin: 0 0 6px;
+            font-size: 15px;
+        }
+        .community-card p {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: #b9cae6;
+        }
+        .community-link {
+            display: inline-block;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: white;
+            background: #1e355d;
+            border: 1px solid #4a74b5;
+            border-radius: 999px;
+            padding: 7px 12px;
+            min-height: 42px;
+            line-height: 1.8;
+            transition: background-color 0.15s ease, transform 0.15s ease;
+        }
+        .community-link:hover {
+            background: #264476;
+            transform: translateY(-1px);
         }
         .grid {
             display: grid;
@@ -81,10 +132,14 @@
             color: var(--text);
             padding: 10px 11px;
             font-size: 14px;
+            min-height: 42px;
             outline: none;
         }
         input[type="text"]:focus, input[type="number"]:focus, select:focus {
             border-color: #4a6ea9;
+        }
+        select[multiple] {
+            min-height: 196px;
         }
         .check-list {
             display: grid;
@@ -96,7 +151,11 @@
             gap: 8px;
             font-size: 14px;
         }
-        .check-item input { transform: translateY(1px); }
+        .check-item input {
+            transform: translateY(1px);
+            width: 17px;
+            height: 17px;
+        }
         .hint {
             font-size: 12px;
             color: #9fb0ce;
@@ -114,6 +173,7 @@
             cursor: pointer;
             font-size: 14px;
             font-weight: 700;
+            min-height: 44px;
             transition: transform 0.15s ease, background-color 0.15s ease;
         }
         button:hover { transform: translateY(-1px); }
@@ -148,9 +208,132 @@
             border: 1px solid #3c527c;
         }
         .toast.show { visibility: visible; }
-        @media (max-width: 620px) {
-            .page { padding-top: 26px; }
-            h1 { font-size: 32px; }
+        button:focus-visible,
+        .community-link:focus-visible,
+        input:focus-visible,
+        select:focus-visible {
+            outline: 3px solid var(--focus-ring);
+            outline-offset: 2px;
+        }
+        @media (max-width: 760px) {
+            .page {
+                padding: 22px max(14px, env(safe-area-inset-right)) 20px max(14px, env(safe-area-inset-left));
+            }
+            h1 { font-size: 30px; }
+            .grid,
+            .community-grid {
+                grid-template-columns: 1fr;
+            }
+            .meta,
+            .community,
+            .card {
+                padding: 13px;
+            }
+            label,
+            .check-item {
+                font-size: 15px;
+            }
+            input[type="text"],
+            input[type="number"],
+            select {
+                font-size: 16px;
+                min-height: 46px;
+            }
+            #wyzie_language_picker {
+                min-height: 210px;
+            }
+            .button-row {
+                flex-direction: column;
+            }
+            button,
+            .community-link {
+                width: 100%;
+                min-height: 48px;
+                text-align: center;
+            }
+            .community-link {
+                line-height: 2;
+            }
+        }
+        @media (min-width: 1400px), (min-height: 900px) {
+            .page {
+                max-width: 1320px;
+                padding: 44px 36px 32px;
+            }
+            h1 { font-size: 56px; }
+            #subtitle { font-size: 22px; }
+            .meta,
+            .community,
+            .card {
+                border-radius: 16px;
+                padding: 20px;
+            }
+            .meta,
+            .community,
+            .url-preview {
+                font-size: 18px;
+            }
+            .community-head {
+                font-size: 28px;
+                margin-bottom: 14px;
+            }
+            .community-card h3 {
+                font-size: 22px;
+            }
+            .community-card p {
+                font-size: 17px;
+                margin-bottom: 12px;
+            }
+            .grid {
+                grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+                gap: 18px;
+            }
+            .card h2 {
+                font-size: 28px;
+                margin-bottom: 14px;
+            }
+            label,
+            .check-item {
+                font-size: 19px;
+            }
+            .check-item input {
+                width: 24px;
+                height: 24px;
+            }
+            .hint {
+                font-size: 16px;
+            }
+            input[type="text"],
+            input[type="number"],
+            select {
+                min-height: 58px;
+                font-size: 20px;
+                padding: 13px 14px;
+                border-radius: 12px;
+            }
+            select[multiple] {
+                min-height: 280px;
+            }
+            button,
+            .community-link {
+                min-height: 58px;
+                font-size: 20px;
+                border-radius: 12px;
+                padding: 12px 18px;
+            }
+            .button-row {
+                gap: 14px;
+                margin: 18px 0 14px;
+            }
+            .url-preview {
+                border-radius: 12px;
+                padding: 15px;
+            }
+            .toast {
+                min-width: 300px;
+                font-size: 18px;
+                padding: 14px 16px;
+            }
         }
     </style>
 </head>
@@ -164,6 +347,22 @@
             <div><b>Supported IDs:</b> <code>tt...</code>, <code>tmdb:...</code>, <code>aniways:&lt;id&gt;:&lt;ep&gt;</code>, <code>kitsu:&lt;id&gt;:&lt;ep&gt;</code>, <code>stmify:&lt;slug&gt;</code></div>
             <div><b>Tip:</b> after changing settings, reinstall from the generated manifest URL.</div>
         </div>
+
+        <section class="community">
+            <h2 class="community-head">Support &amp; Community</h2>
+            <div class="community-grid">
+                <article class="community-card">
+                    <h3>Ko-fi</h3>
+                    <p>If Flix-Streams helps you, you can support ongoing development here.</p>
+                    <a class="community-link" href="https://ko-fi.com/sandortoth" target="_blank" rel="noopener noreferrer">Open Ko-fi</a>
+                </article>
+                <article class="community-card">
+                    <h3>Discord</h3>
+                    <p>Join the Discord server for updates, feedback, and quick support.</p>
+                    <a class="community-link" href="https://discord.gg/GnKRAwwdcQ" target="_blank" rel="noopener noreferrer">Join Discord</a>
+                </article>
+            </div>
+        </section>
 
         <div class="grid">
             <section class="card">

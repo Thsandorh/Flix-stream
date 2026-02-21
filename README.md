@@ -2,6 +2,11 @@
 
 Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs and returns stream links from multiple upstream providers.
 
+## Support & Community
+
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Development-29abe0?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/sandortoth)
+[![Join Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/GnKRAwwdcQ)
+
 ## What It Does
 
 - Supports `movie` and `series`.

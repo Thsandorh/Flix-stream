@@ -116,6 +116,7 @@ def get_stmify_stream(stmify_id):
     if not canonical_id or not channel:
         return []
 
+    channel_name = str(channel.get("name") or canonical_id.split(":", 1)[1].replace("-", " ").title()).strip()
     stream_url = channel.get("stream_url")
     if not stream_url:
         return []
@@ -123,7 +124,7 @@ def get_stmify_stream(stmify_id):
     return [
         {
             "name": "Stmify",
-            "title": f"Live: {channel.get('name') or canonical_id.split(':', 1)[1].replace('-', ' ').title()}",
+            "title": f"Live: {channel_name}",
             "url": stream_url,
             "behaviorHints": {
                 "notWebReady": True,
