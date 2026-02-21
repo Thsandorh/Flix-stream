@@ -80,7 +80,11 @@ def get_stmify_stream(stmify_id):
         k1 = channel.get("k1")
         k2 = channel.get("k2")
 
-        if k1 and k2:
+        # Use proxy ONLY if it's MPD and has keys
+        # If it's M3U8, we return direct link even if keys are present (likely irrelevant or unsupported via this method)
+        is_mpd = ".mpd" in stream_url.lower() or ".dash" in stream_url.lower()
+
+        if k1 and k2 and is_mpd:
             # Use local proxy to inject DRM signaling
             base_url = request.url_root.rstrip('/')
             proxy_url = f"{base_url}/stmify/proxy/{slug}.mpd"
@@ -101,7 +105,7 @@ def get_stmify_stream(stmify_id):
                 }
             }]
 
-        # Standard Stream
+        # Standard Stream (M3U8 or non-DRM MPD)
         headers = {
             "User-Agent": COMMON_HEADERS["User-Agent"],
             "Referer": "https://stmify.com/",
@@ -152,10 +156,6 @@ def proxy_mpd(slug):
         base_url_xml = f"<BaseURL>{base_url_val}</BaseURL>"
 
         # 2. ClearKey ContentProtection
-        # Note: We put this *before* other ContentProtection tags if possible,
-        # or we remove the others to force ClearKey usage.
-        # Removing Widevine/PlayReady is safer to ensure fallback.
-
         clearkey_xml = f"""
         <ContentProtection schemeIdUri="urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b" value="ClearKey">
             <dashif:Laurl>{license_url}</dashif:Laurl>
@@ -163,9 +163,6 @@ def proxy_mpd(slug):
         """
 
         # Remove Widevine and PlayReady ContentProtection blocks
-        # Widevine: edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
-        # PlayReady: 9a04f079-9840-4286-ab92-e65be0885f95
-
         mpd_content = re.sub(
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*>.*?</ContentProtection>',
             '', mpd_content, flags=re.DOTALL
@@ -174,8 +171,6 @@ def proxy_mpd(slug):
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*>.*?</ContentProtection>',
             '', mpd_content, flags=re.DOTALL
         )
-
-        # Also catch self-closing tags
         mpd_content = re.sub(
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*/>',
             '', mpd_content
@@ -189,14 +184,25 @@ def proxy_mpd(slug):
         if "xmlns:dashif" not in mpd_content:
             mpd_content = mpd_content.replace('<MPD ', '<MPD xmlns:dashif="https://dashif.org/guidelines/clear-key" ', 1)
 
-        # Inject BaseURL after <Period ...>
+        # Inject BaseURL
+        # Try to inject after <Period ...>
+        # Note: If regex fails (no Period tag match), we might have issues.
+        # Standard DASH MPD has at least one Period.
+        # However, some MPDs might have attributes spanning multiple lines.
+        # Let's try a safer injection point: right before first AdaptationSet if Period injection fails?
+        # Or just append to beginning of Period children.
+
         if "<Period" in mpd_content:
-            mpd_content = re.sub(r'(<Period[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1)
+            # We use a non-greedy match for attributes
+            mpd_content = re.sub(r'(<Period[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1, flags=re.DOTALL)
+        else:
+            # Fallback: Inject after MPD start tag
+            # But BaseURL scope matters. Putting it in MPD root is also valid.
+            mpd_content = re.sub(r'(<MPD[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1, flags=re.DOTALL)
 
         # Inject ContentProtection
-        # We inject it right after the opening AdaptationSet tag to ensure it's seen.
         if "<AdaptationSet" in mpd_content:
-            mpd_content = re.sub(r'(<AdaptationSet[^>]*>)', fr'\1{clearkey_xml}', mpd_content, count=1)
+            mpd_content = re.sub(r'(<AdaptationSet[^>]*>)', fr'\1{clearkey_xml}', mpd_content, count=1, flags=re.DOTALL)
 
         resp = make_response(mpd_content)
         resp.headers['Content-Type'] = 'application/dash+xml'
