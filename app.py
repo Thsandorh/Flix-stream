@@ -9,6 +9,7 @@ from flix_stream.anime import (
     get_kitsu_anime_context,
     resolve_aniways_id_from_kitsu,
 )
+from flix_stream.cineby import CinebyProvider
 from flix_stream.anime_id_resolver import (
     pick_best_tmdb_candidate,
     resolve_external_ids_from_mal_anilist,
@@ -149,6 +150,8 @@ def _build_manifest(addon_config):
         provider_labels.append("AutoEmbed")
     if addon_config.get("enable_vixsrc"):
         provider_labels.append("VixSrc")
+    if addon_config.get("enable_cineby"):
+        provider_labels.append("Cineby")
     if addon_config.get("enable_aniways"):
         provider_labels.append("Aniways")
     if famelack_countries:
@@ -190,7 +193,7 @@ def _fetch_wyzie_for_anime_ids(source_prefix, source_id, anime_id, season, episo
     return fetch_wyzie_subtitles(tmdb_id, wyzie_season, wyzie_episode, addon_config)
 
 
-def _fetch_provider_streams(tmdb_id, kind, season, episode, addon_config):
+def _fetch_provider_streams(tmdb_id, imdb_id, kind, season, episode, addon_config):
     all_streams = []
 
     def _fetch_vidzee_streams():
@@ -226,6 +229,8 @@ def _fetch_provider_streams(tmdb_id, kind, season, episode, addon_config):
             futures.append(executor.submit(_fetch_autoembed_streams))
         if addon_config.get("enable_vixsrc"):
             futures.append(executor.submit(fetch_vixsrc_streams, tmdb_id, kind, season, episode))
+        if addon_config.get("enable_cineby"):
+            futures.append(executor.submit(CinebyProvider.fetch_streams, tmdb_id, imdb_id, ("tv" if kind in ("series", "tv") else "movie"), season or 1, episode or 1))
 
         for future in futures:
             try:
@@ -468,6 +473,7 @@ def _stream_response(content_type, raw_id, addon_config):
         provider_future = executor.submit(
             _fetch_provider_streams,
             tmdb_id,
+            parts[0] if parts and parts[0].startswith("tt") else None,
             kind,
             season,
             episode,
