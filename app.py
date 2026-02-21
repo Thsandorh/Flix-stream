@@ -45,6 +45,7 @@ from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 app = Flask(__name__)
 
+# Stmify is now always enabled alongside Famelack
 STMIFY_CATALOGS = [
     {"type": "series", "id": "stmify-trending", "name": "Stmify Trending", "extra": [{"name": "skip", "isRequired": False}]},
     {"type": "series", "id": "stmify-movies", "name": "Stmify Movies", "extra": [{"name": "skip", "isRequired": False}]},
@@ -125,19 +126,19 @@ def _build_manifest(addon_config):
     id_prefixes = list(manifest_data.get("idPrefixes") or [])
     catalogs = list(manifest_data.get("catalogs") or [])
 
+    # Ensure resources for TV
+    if "catalog" not in resources:
+        resources.append("catalog")
+    if "meta" not in resources:
+        resources.append("meta")
+
     # Famelack Integration
     famelack_countries = addon_config.get("famelack_countries")
     if famelack_countries:
-        if "catalog" not in resources:
-            resources.append("catalog")
-        if "meta" not in resources:
-            resources.append("meta")
         if "famelack" not in id_prefixes:
             id_prefixes.append("famelack")
 
-        # Try to get country names
         all_countries = get_famelack_countries()
-
         for code in famelack_countries:
             code = code.lower()
             country_name = all_countries.get(code.upper(), {}).get("country", code.upper())
@@ -151,36 +152,18 @@ def _build_manifest(addon_config):
         id_prefixes = [prefix for prefix in id_prefixes if prefix != "famelack"]
         catalogs = [c for c in catalogs if not c["id"].startswith("famelack-")]
 
-    # Stmify Integration
-    if addon_config.get("enable_stmify"):
-        if "catalog" not in resources:
-            resources.append("catalog")
-        if "meta" not in resources:
-            resources.append("meta")
-        if "stmify" not in id_prefixes:
-            id_prefixes.append("stmify")
+    # Stmify Integration (Always Enabled)
+    if "stmify" not in id_prefixes:
+        id_prefixes.append("stmify")
 
-        for stmify_cat in STMIFY_CATALOGS:
-            if not any(
-                isinstance(catalog, dict)
-                and catalog.get("type") == stmify_cat["type"]
-                and catalog.get("id") == stmify_cat["id"]
-                for catalog in catalogs
-            ):
-                catalogs.append(dict(stmify_cat))
-    else:
-        id_prefixes = [prefix for prefix in id_prefixes if prefix != "stmify"]
-        catalogs = [
-            catalog
+    for stmify_cat in STMIFY_CATALOGS:
+        if not any(
+            isinstance(catalog, dict)
+            and catalog.get("type") == stmify_cat["type"]
+            and catalog.get("id") == stmify_cat["id"]
             for catalog in catalogs
-            if not (
-                isinstance(catalog, dict)
-                and any(
-                    catalog.get("type") == sc["type"] and catalog.get("id") == sc["id"]
-                    for sc in STMIFY_CATALOGS
-                )
-            )
-        ]
+        ):
+            catalogs.append(dict(stmify_cat))
 
     manifest_data["resources"] = resources
     manifest_data["idPrefixes"] = id_prefixes
@@ -202,8 +185,9 @@ def _build_manifest(addon_config):
         provider_labels.append("Aniways")
     if famelack_countries:
         provider_labels.append(f"TV ({len(famelack_countries)})")
-    if addon_config.get("enable_stmify"):
-        provider_labels.append("Stmify")
+
+    # Stmify is always active now
+    provider_labels.append("Stmify")
 
     providers_text = ", ".join(provider_labels) if provider_labels else "none"
 
@@ -384,12 +368,9 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
         metas = get_famelack_catalog(code, skip=skip)
         return jsonify({"metas": metas})
 
-    # Stmify Catalogs
+    # Stmify Catalogs (Always Active)
     is_stmify_catalog = any(c["id"] == catalog_id for c in STMIFY_CATALOGS)
     if is_stmify_catalog:
-        if not addon_config.get("enable_stmify"):
-             return jsonify({"metas": []})
-
         if skip is None:
             try:
                 skip = int(request.args.get("skip", "0"))
@@ -415,8 +396,7 @@ def _meta_response(content_type, raw_id, addon_config):
         return jsonify({"meta": meta})
 
     if str(decoded_id).startswith("stmify:"):
-        if not addon_config.get("enable_stmify"):
-            return jsonify({"meta": None}), 404
+        # Always allow stmify meta if ID matches
         meta = get_stmify_meta(decoded_id)
         if not isinstance(meta, dict):
             return jsonify({"meta": None}), 404
@@ -496,8 +476,7 @@ def _stream_response(content_type, raw_id, addon_config):
         return jsonify({"streams": streams})
 
     if prefix == "stmify":
-        if not addon_config.get("enable_stmify"):
-            return jsonify({"streams": []})
+        # Always allow stmify streams if ID matches
         stmify_streams = get_stmify_stream(decoded_id)
         stmify_streams.append(_support_stream())
         return jsonify({"streams": stmify_streams})

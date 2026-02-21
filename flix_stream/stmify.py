@@ -163,7 +163,6 @@ def _check_catalog_item(item):
         return None
 
     # Optional: Verify it's actually alive with a HEAD request
-    # This might slow down scraping but ensures quality as requested "actually working"
     try:
         head_headers = dict(COMMON_HEADERS)
         if "cdn.stmify.com" in stream_url:
@@ -210,6 +209,8 @@ def get_stmify_catalog(catalog_id, skip=0):
     with ThreadPoolExecutor(max_workers=20) as executor:
         for result in executor.map(_check_catalog_item, items):
             if result:
+                # Add source indication to description for UI clarity
+                result["description"] = f"Source: Stmify | {result.get('name')}"
                 valid_items.append(result)
 
     return valid_items
@@ -471,6 +472,11 @@ def get_stmify_meta(stmify_id):
 
     name = str(channel.get("name") or canonical_id).strip()
     description = str(channel.get("description") or "").strip() or f"Watch {name} live on Stmify."
+
+    # Add source attribution clearly
+    if "Source: Stmify" not in description:
+        description += "\n\nSource: Stmify"
+
     return {
         "id": canonical_id,
         "type": "series",

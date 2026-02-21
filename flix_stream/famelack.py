@@ -65,8 +65,31 @@ def _extract_youtube_id(url):
         return match.group(1)
     return None
 
+def _wrap_text(text, max_len=20):
+    words = text.split()
+    lines = []
+    current_line = []
+    current_len = 0
+
+    for word in words:
+        if current_len + len(word) + 1 > max_len:
+            lines.append(" ".join(current_line))
+            current_line = [word]
+            current_len = len(word)
+        else:
+            current_line.append(word)
+            current_len += len(word) + 1
+
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    return "\n".join(lines)
+
 def _generate_poster(name, country_code):
-    encoded_name = quote(name)
+    # Wrap text for better visibility on dummy image
+    wrapped_name = _wrap_text(name, max_len=18)
+    encoded_name = quote(wrapped_name)
+    # Using 1a1a1a background and FFF text
     return f"https://placehold.co/600x900/1a1a1a/FFF.jpg?text={encoded_name}"
 
 def get_famelack_catalog(code, skip=0):
@@ -100,7 +123,7 @@ def get_famelack_catalog(code, skip=0):
             "type": "series",
             "name": name,
             "poster": poster,
-            "description": f"Watch {name} from {country_code.upper()}",
+            "description": f"Source: Famelack | Country: {country_code.upper()}",
             "background": poster,
             "behaviorHints": {
                 "defaultVideoId": f"famelack:{country_code}:{nanoid}"
@@ -135,7 +158,7 @@ def get_famelack_meta(famelack_id):
         "name": name,
         "poster": poster,
         "background": poster,
-        "description": f"Watch {name} live.",
+        "description": f"Watch {name} live.\n\nSource: Famelack\nCountry: {country_code.upper()}",
         "genres": ["Live TV", country_code.upper()],
         "country": country_code.upper(),
         "videos": [
