@@ -15,6 +15,8 @@ from flix_stream.config import (
 from flix_stream.cache import ttl_cache
 from flix_stream.crypto import decrypt_autoembed_response, decrypt_link
 from flix_stream.subtitles import parse_subtitles
+from flix_stream.hdhub4u import fetch_hdhub4u_streams
+from flix_stream.tmdb import get_imdb_id_from_tmdb, get_tmdb_title
 
 
 logger = logging.getLogger(__name__)
@@ -252,4 +254,22 @@ def fetch_vixsrc_streams(tmdb_id, content_type, season, episode):
         ]
     except Exception as exc:
         logger.error("Error fetching VixSrc streams for TMDB %s: %s", tmdb_id, exc)
+        return []
+
+
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
+def fetch_hdhub4u_streams_worker(tmdb_id, content_type, season, episode):
+    """Fetch streams from HDHub4u using TMDB metadata."""
+    try:
+        # Get metadata
+        imdb_id = get_imdb_id_from_tmdb(tmdb_id, content_type)
+        title = get_tmdb_title(tmdb_id, content_type)
+
+        if not title and not imdb_id:
+            logger.warning("HDHub4u: Could not resolve title or IMDb ID for TMDB %s", tmdb_id)
+            return []
+
+        return fetch_hdhub4u_streams(tmdb_id, imdb_id, title, season, episode)
+    except Exception as exc:
+        logger.error("Error fetching HDHub4u streams for TMDB %s: %s", tmdb_id, exc)
         return []

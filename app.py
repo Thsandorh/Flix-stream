@@ -20,6 +20,7 @@ from flix_stream.providers import (
     fetch_autoembed_server_streams,
     fetch_server_streams,
     fetch_vixsrc_streams,
+    fetch_hdhub4u_streams_worker,
 )
 from flix_stream.runtime_config import (
     DEFAULT_ADDON_CONFIG,
@@ -158,6 +159,8 @@ def _build_manifest(addon_config):
         provider_labels.append("Aniways")
     if addon_config.get("enable_stmify"):
         provider_labels.append("Stmify")
+    if addon_config.get("enable_hdhub4u"):
+        provider_labels.append("HDHub4u")
     providers_text = ", ".join(provider_labels) if provider_labels else "none"
 
     subtitle_state = "enabled" if addon_config.get("enable_wyzie") else "disabled"
@@ -230,6 +233,8 @@ def _fetch_provider_streams(tmdb_id, kind, season, episode, addon_config):
             futures.append(executor.submit(_fetch_autoembed_streams))
         if addon_config.get("enable_vixsrc"):
             futures.append(executor.submit(fetch_vixsrc_streams, tmdb_id, kind, season, episode))
+        if addon_config.get("enable_hdhub4u"):
+            futures.append(executor.submit(fetch_hdhub4u_streams_worker, tmdb_id, kind, season, episode))
 
         for future in futures:
             try:
