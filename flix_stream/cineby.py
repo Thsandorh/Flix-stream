@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import random
+import shutil
+import subprocess
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from Crypto.Cipher import AES
@@ -30,20 +32,28 @@ class CinebyProvider:
     _wasm_module = None
 
     @classmethod
+    def _resolve_module_path(cls):
+        module_path = os.path.join(os.path.dirname(__file__), "module.wasm")
+        if os.path.exists(module_path):
+            return module_path
+
+        fallback_path = "module.wasm"
+        if os.path.exists(fallback_path):
+            return fallback_path
+
+        logger.error("module.wasm not found at %s or %s", module_path, fallback_path)
+        return None
+
+    @classmethod
     def _get_wasm(cls):
         if not WASM_AVAILABLE:
             return None, None
         if cls._wasm_engine is None:
             try:
                 cls._wasm_engine = Engine()
-                module_path = os.path.join(os.path.dirname(__file__), "module.wasm")
-                if not os.path.exists(module_path):
-                    # Fallback for local testing
-                    module_path = "module.wasm"
-                if os.path.exists(module_path):
+                module_path = cls._resolve_module_path()
+                if module_path:
                     cls._wasm_module = Module.from_file(cls._wasm_engine, module_path)
-                else:
-                    logger.error("module.wasm not found at %s", module_path)
             except Exception as e:
                 logger.error("Failed to load WASM engine: %s", e)
         return cls._wasm_engine, cls._wasm_module
@@ -77,8 +87,9 @@ class CinebyProvider:
     @ttl_cache(ttl_seconds=3600)
     def fetch_streams(tmdb_id, imdb_id=None, media_type="movie", season=1, episode=1):
         engine, module = CinebyProvider._get_wasm()
-        if not module:
-            logger.error("Cineby provider unavailable: WASM module not loaded.")
+        has_node_runtime = shutil.which("node") is not None
+        if not module and not has_node_runtime:
+            logger.error("Cineby provider unavailable: WASM runtime missing (install wasmtime or provide node).")
             return []
 
         # Sub-providers to query on the videasy API
@@ -107,6 +118,8 @@ class CinebyProvider:
 
                 # Step 1: WASM Decrypt
                 b64_ciphertext = CinebyProvider._run_wasm_decrypt(engine, module, r.text, tmdb_id)
+                if not b64_ciphertext and has_node_runtime:
+                    b64_ciphertext = CinebyProvider._run_node_wasm_decrypt(r.text, tmdb_id)
                 if not b64_ciphertext:
                     return []
 
@@ -143,6 +156,8 @@ class CinebyProvider:
 
     @staticmethod
     def _run_wasm_decrypt(engine, module, hex_response, tmdb_id):
+        if not engine or not module:
+            return None
         try:
             store = Store(engine)
             # Use deterministic seed to match our FIXED_WASM_HASH
@@ -176,4 +191,79 @@ class CinebyProvider:
             return read_str(res_ptr)
         except Exception as e:
             logger.error("WASM decryption failed: %s", e)
+            return None
+
+    @staticmethod
+    def _run_node_wasm_decrypt(hex_response, tmdb_id):
+        module_path = CinebyProvider._resolve_module_path()
+        if not module_path:
+            return None
+
+        js_script = r"""
+const fs = require('fs');
+
+async function main() {
+  const wasmPath = process.argv[1];
+  const payload = process.argv[2];
+  const tmdbId = Number(process.argv[3]);
+  const hash = process.argv[4];
+
+  const imports = {
+    env: {
+      seed: () => 0.5,
+      abort: () => {}
+    }
+  };
+
+  const wasm = await WebAssembly.instantiate(fs.readFileSync(wasmPath), imports);
+  const exports = wasm.instance.exports;
+  const memory = exports.memory;
+
+  const writeStr = (str) => {
+    const bytes = Buffer.from(str, 'utf16le');
+    const ptr = exports.__new(bytes.length, 2);
+    new Uint8Array(memory.buffer).set(bytes, ptr);
+    return ptr;
+  };
+
+  const readStr = (ptr) => {
+    if (!ptr) return '';
+    const view = new DataView(memory.buffer);
+    const byteLen = view.getUint32(ptr - 4, true);
+    return Buffer.from(new Uint8Array(memory.buffer, ptr, byteLen)).toString('utf16le');
+  };
+
+  exports.verify(writeStr(hash));
+  const resPtr = exports.decrypt(writeStr(payload), tmdbId);
+  process.stdout.write(readStr(resPtr));
+}
+
+main().catch((err) => {
+  process.stderr.write(String(err));
+  process.exit(1);
+});
+"""
+
+        try:
+            result = subprocess.run(
+                [
+                    "node",
+                    "-e",
+                    js_script,
+                    module_path,
+                    str(hex_response),
+                    str(tmdb_id),
+                    CinebyProvider.FIXED_WASM_HASH,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                check=False,
+            )
+            if result.returncode != 0:
+                logger.debug("Node WASM decrypt failed: %s", (result.stderr or "").strip())
+                return None
+            return (result.stdout or "").strip() or None
+        except Exception as e:
+            logger.debug("Node WASM fallback error: %s", e)
             return None
