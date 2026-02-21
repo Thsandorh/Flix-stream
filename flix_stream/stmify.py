@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from urllib.parse import quote, urljoin, urlparse
 
@@ -150,6 +151,31 @@ def scrape_stmify_category(path, page=1):
     return results
 
 
+def _check_catalog_item(item):
+    """
+    Helper to check if a catalog item has a valid, non-DRM stream.
+    Returns the item if valid, None otherwise.
+    """
+    slug = item.get("id", "").replace("stmify:", "")
+    if not slug:
+        return None
+
+    # Resolve the stream info
+    # This caches the result so the subsequent get_stream call is fast.
+    info = _get_live_stream_info(slug)
+    if not info:
+        # Stream not found or extraction failed
+        return None
+
+    stream_url = info.get("url")
+    if _is_mpd_stream_url(stream_url):
+        # DRM protected (MPD), filter out per user request
+        return None
+
+    # Valid M3U8 stream found
+    return item
+
+
 def get_stmify_catalog(catalog_id, skip=0):
     # Map catalog IDs to URL paths
     CATALOG_MAP = {
@@ -169,7 +195,19 @@ def get_stmify_catalog(catalog_id, skip=0):
         return []
 
     page = (skip // 20) + 1
-    return scrape_stmify_category(path, page=page)
+    items = scrape_stmify_category(path, page=page)
+
+    if not items:
+        return []
+
+    # Parallel validation of streams
+    valid_items = []
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        for result in executor.map(_check_catalog_item, items):
+            if result:
+                valid_items.append(result)
+
+    return valid_items
 
 
 def _normalize_stmify_id(stmify_id):
@@ -576,7 +614,13 @@ def get_stmify_hls_payload(slug, target_url=None):
             return "Invalid proxy target", 400, "text/plain; charset=utf-8"
 
     try:
-        response = requests.get(stream_url, headers=COMMON_HEADERS, timeout=15)
+        req_headers = dict(COMMON_HEADERS)
+        # If accessing cdn.stmify.com, adjust headers to avoid cross-origin blocks
+        if "cdn.stmify.com" in stream_url:
+            req_headers["Referer"] = "https://cdn.stmify.com/"
+            req_headers["Origin"] = "https://cdn.stmify.com"
+
+        response = requests.get(stream_url, headers=req_headers, timeout=15)
     except Exception as exc:
         logger.warning("Stmify HLS proxy request failed for %s: %s", slug, exc)
         return "Proxy error", 500, "text/plain; charset=utf-8"
