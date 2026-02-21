@@ -3,8 +3,8 @@ import os
 import requests
 import base64
 import binascii
-import re  # Added re import
-from flask import Blueprint, jsonify, request, Response, stream_with_context
+import re
+from flask import Blueprint, jsonify, request, Response, make_response
 from functools import lru_cache
 
 stmify_bp = Blueprint('stmify', __name__)
@@ -145,7 +145,6 @@ def proxy_mpd(slug):
         base_url_val = original_url.rsplit('/', 1)[0] + '/'
 
         # Construct License URL
-        # Stremio will call this.
         license_url = f"{request.url_root.rstrip('/')}/stmify/license/{slug}"
 
         # Injection XML
@@ -153,34 +152,56 @@ def proxy_mpd(slug):
         base_url_xml = f"<BaseURL>{base_url_val}</BaseURL>"
 
         # 2. ClearKey ContentProtection
-        # We assume the player supports DASH-IF guidelines or generic ClearKey
+        # Note: We put this *before* other ContentProtection tags if possible,
+        # or we remove the others to force ClearKey usage.
+        # Removing Widevine/PlayReady is safer to ensure fallback.
+
         clearkey_xml = f"""
         <ContentProtection schemeIdUri="urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b" value="ClearKey">
             <dashif:Laurl>{license_url}</dashif:Laurl>
         </ContentProtection>
         """
 
-        # 3. Add Namespace if missing (simple check)
-        if "xmlns:dashif" not in mpd_content:
-            mpd_content = mpd_content.replace('<MPD ', '<MPD xmlns:dashif="https://dashif.org/guidelines/clear-key" ')
+        # Remove Widevine and PlayReady ContentProtection blocks
+        # Widevine: edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
+        # PlayReady: 9a04f079-9840-4286-ab92-e65be0885f95
 
-        # Inject BaseURL after <Period ...> or inside <MPD>
-        # Simple regex replacement
+        mpd_content = re.sub(
+            r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*>.*?</ContentProtection>',
+            '', mpd_content, flags=re.DOTALL
+        )
+        mpd_content = re.sub(
+            r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*>.*?</ContentProtection>',
+            '', mpd_content, flags=re.DOTALL
+        )
+
+        # Also catch self-closing tags
+        mpd_content = re.sub(
+            r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*/>',
+            '', mpd_content
+        )
+        mpd_content = re.sub(
+            r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*/>',
+            '', mpd_content
+        )
+
+        # 3. Add Namespace if missing
+        if "xmlns:dashif" not in mpd_content:
+            mpd_content = mpd_content.replace('<MPD ', '<MPD xmlns:dashif="https://dashif.org/guidelines/clear-key" ', 1)
+
+        # Inject BaseURL after <Period ...>
         if "<Period" in mpd_content:
-            mpd_content = mpd_content.replace('>', f'>{base_url_xml}', 1) # Inject after first tag closure? No, risky.
-            # Better: Inject after <Period ...> start tag closure.
             mpd_content = re.sub(r'(<Period[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1)
-        else:
-            # Inject at start of MPD content?
-            pass
 
         # Inject ContentProtection
-        # Look for existing ContentProtection and append ours
-        # Or inject into AdaptationSet
+        # We inject it right after the opening AdaptationSet tag to ensure it's seen.
         if "<AdaptationSet" in mpd_content:
             mpd_content = re.sub(r'(<AdaptationSet[^>]*>)', fr'\1{clearkey_xml}', mpd_content, count=1)
 
-        return Response(mpd_content, mimetype="application/dash+xml")
+        resp = make_response(mpd_content)
+        resp.headers['Content-Type'] = 'application/dash+xml'
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
 
     except Exception as e:
         return f"Proxy error: {e}", 500
@@ -214,4 +235,6 @@ def license_server(slug):
         "type": "temporary"
     }
 
-    return jsonify(keys)
+    resp = jsonify(keys)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
