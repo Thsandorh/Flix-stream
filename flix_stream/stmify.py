@@ -165,9 +165,19 @@ def get_stmify_channel(stmify_id):
         ),
         None,
     )
-    if not isinstance(channel, dict):
-        return None, None
-    return canonical_id, channel
+    if isinstance(channel, dict):
+        return canonical_id, channel
+
+    # Fallback for slugs that are currently missing from static JSON but exist on Stmify.
+    if re.fullmatch(r"[a-z0-9-]+", slug):
+        return canonical_id, {
+            "id": canonical_id,
+            "slug": slug,
+            "type": "series",
+            "name": slug.replace("-", " ").title(),
+            "description": f"Watch {slug.replace('-', ' ').title()} live on Stmify.",
+        }
+    return None, None
 
 
 def _resolve_stream_info_from_stmify(slug):
@@ -267,6 +277,13 @@ def _build_hls_proxy_url(slug, target_url=None):
     return f"/stmify/hls/{slug}.m3u8{query}"
 
 
+def _build_dash_segment_proxy_base(slug):
+    if has_request_context():
+        base_url = request.url_root.rstrip("/")
+        return f"{base_url}/stmify/dash/{slug}/"
+    return f"/stmify/dash/{slug}/"
+
+
 def get_stmify_stream(stmify_id):
     canonical_id, channel = get_stmify_channel(stmify_id)
     if not canonical_id or not channel:
@@ -332,24 +349,33 @@ def _inject_dashif_namespace(mpd_content):
     return mpd_content
 
 
-def _inject_base_url(mpd_content, base_url):
-    if "<BaseURL>" in mpd_content:
-        return mpd_content
+def _set_base_url(mpd_content, base_url):
+    cleaned = re.sub(r"<BaseURL>.*?</BaseURL>", "", mpd_content, flags=re.DOTALL | re.IGNORECASE)
     patched, count = re.subn(
         r"(<Period\b[^>]*>)",
         lambda match: f"{match.group(1)}<BaseURL>{base_url}</BaseURL>",
-        mpd_content,
+        cleaned,
         count=1,
     )
     if count:
         return patched
-    return mpd_content
+    patched, count = re.subn(
+        r"(<MPD\b[^>]*>)",
+        lambda match: f"{match.group(1)}<BaseURL>{base_url}</BaseURL>",
+        cleaned,
+        count=1,
+    )
+    if count:
+        return patched
+    return cleaned
 
 
 def _strip_non_clearkey_drm_blocks(mpd_content):
     patterns = [
         r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*>.*?</ContentProtection>',
         r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*>.*?</ContentProtection>',
+        r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*/>',
+        r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*/>',
     ]
     patched = mpd_content
     for pattern in patterns:
@@ -407,11 +433,60 @@ def get_stmify_proxy_mpd(slug, license_url):
     mpd_content = str(response.text or "")
     key_source = (live_info or {}).get("k1") or channel.get("k1")
     default_kid = _hex_to_uuid(key_source) if _is_valid_hex_key(key_source) else None
-    base_url = stream_url.rsplit("/", 1)[0] + "/"
+    base_url = _build_dash_segment_proxy_base(slug)
     mpd_content = _inject_dashif_namespace(mpd_content)
-    mpd_content = _inject_base_url(mpd_content, base_url)
+    mpd_content = _set_base_url(mpd_content, base_url)
     mpd_content = _inject_clearkey_content_protection(mpd_content, license_url, default_kid=default_kid)
     return mpd_content, 200
+
+
+def get_stmify_dash_segment_payload(slug, segment_path, query_string=None, range_header=None):
+    _, channel = get_stmify_channel(f"stmify:{slug}")
+    if not isinstance(channel, dict):
+        return "Channel not found", 404, "text/plain; charset=utf-8", {}
+
+    live_info = _get_live_stream_info(slug)
+    stream_url = str((live_info or {}).get("url") or channel.get("stream_url") or "").strip()
+    if not stream_url:
+        return "Channel stream not found", 404, "text/plain; charset=utf-8", {}
+    if not _is_mpd_stream_url(stream_url):
+        return "Channel stream is not DASH MPD", 400, "text/plain; charset=utf-8", {}
+
+    upstream_base = stream_url.rsplit("/", 1)[0] + "/"
+    clean_segment_path = str(segment_path or "").strip()
+    if not clean_segment_path:
+        return "Segment path missing", 400, "text/plain; charset=utf-8", {}
+
+    if re.match(r"^https?://", clean_segment_path, flags=re.IGNORECASE):
+        target_url = clean_segment_path
+    else:
+        target_url = urljoin(upstream_base, clean_segment_path.lstrip("/"))
+
+    clean_query = str(query_string or "").lstrip("?")
+    if clean_query:
+        sep = "&" if "?" in target_url else "?"
+        target_url = f"{target_url}{sep}{clean_query}"
+
+    headers = dict(COMMON_HEADERS)
+    if range_header:
+        headers["Range"] = str(range_header)
+
+    try:
+        response = requests.get(target_url, headers=headers, timeout=15, stream=True)
+    except Exception as exc:
+        logger.warning("Stmify DASH segment proxy request failed for %s: %s", slug, exc)
+        return "Proxy error", 500, "text/plain; charset=utf-8", {}
+    if response.status_code >= 400:
+        return f"Upstream error: {response.status_code}", response.status_code, "text/plain; charset=utf-8", {}
+
+    content_type = str(response.headers.get("Content-Type") or "application/octet-stream")
+    passthrough_headers = {}
+    for header_name in ("Content-Range", "Accept-Ranges", "Cache-Control", "ETag"):
+        header_value = response.headers.get(header_name)
+        if header_value:
+            passthrough_headers[header_name] = header_value
+
+    return response.content, response.status_code, content_type, passthrough_headers
 
 
 def _rewrite_m3u8_for_proxy(m3u8_content, source_url, slug):

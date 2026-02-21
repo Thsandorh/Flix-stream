@@ -29,6 +29,7 @@ from flix_stream.runtime_config import (
 )
 from flix_stream.stmify import (
     get_stmify_catalog,
+    get_stmify_dash_segment_payload,
     get_stmify_hls_payload,
     get_stmify_license_payload,
     get_stmify_meta,
@@ -410,6 +411,24 @@ def stmify_hls_proxy(slug):
     if status != 200:
         return payload, status
     return Response(payload, status=200, content_type=content_type)
+
+
+@app.route("/stmify/dash/<slug>/<path:segment_path>")
+def stmify_dash_segment_proxy(slug, segment_path):
+    query_string = request.query_string.decode("utf-8", errors="ignore")
+    range_header = request.headers.get("Range")
+    payload, status, content_type, passthrough_headers = get_stmify_dash_segment_payload(
+        slug,
+        segment_path,
+        query_string=query_string,
+        range_header=range_header,
+    )
+    if status >= 400:
+        return payload, status
+    response = Response(payload, status=status, content_type=content_type)
+    for header_name, header_value in passthrough_headers.items():
+        response.headers[header_name] = header_value
+    return response
 
 
 @app.route("/stmify/license/<slug>", methods=["GET", "POST"])
