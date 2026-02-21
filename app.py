@@ -221,7 +221,7 @@ def _fetch_provider_streams(tmdb_id, imdb_id, kind, season, episode, addon_confi
                 streams.extend(res)
         return streams
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         futures = []
         if addon_config.get("enable_vidzee"):
             futures.append(executor.submit(_fetch_vidzee_streams))

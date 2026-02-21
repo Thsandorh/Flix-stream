@@ -31,11 +31,11 @@ def provider_rank(stream_obj):
     name = str(stream_obj.get("name", "")).lower()
     if name.startswith("vidzee"):
         return 0
-    if name.startswith("autoembed"):
-        return 1
-    if name.startswith("vixsrc"):
-        return 2
     if name.startswith("cineby"):
+        return 1
+    if name.startswith("autoembed"):
+        return 2
+    if name.startswith("vixsrc"):
         return 3
     if name.startswith("aniways"):
         return 4
