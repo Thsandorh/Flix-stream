@@ -163,6 +163,7 @@ def proxy_mpd(slug):
         """
 
         # Remove Widevine and PlayReady ContentProtection blocks
+        # We use a non-greedy dot match to handle single blocks
         mpd_content = re.sub(
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*>.*?</ContentProtection>',
             '', mpd_content, flags=re.DOTALL
@@ -171,6 +172,8 @@ def proxy_mpd(slug):
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*>.*?</ContentProtection>',
             '', mpd_content, flags=re.DOTALL
         )
+
+        # Also catch self-closing tags
         mpd_content = re.sub(
             r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*/>',
             '', mpd_content
@@ -182,22 +185,14 @@ def proxy_mpd(slug):
 
         # 3. Add Namespace if missing
         if "xmlns:dashif" not in mpd_content:
-            mpd_content = mpd_content.replace('<MPD ', '<MPD xmlns:dashif="https://dashif.org/guidelines/clear-key" ', 1)
+            # Inject into root element attributes
+            mpd_content = re.sub(r'(<MPD[^>]*)', r'\1 xmlns:dashif="https://dashif.org/guidelines/clear-key"', mpd_content, count=1)
 
-        # Inject BaseURL
-        # Try to inject after <Period ...>
-        # Note: If regex fails (no Period tag match), we might have issues.
-        # Standard DASH MPD has at least one Period.
-        # However, some MPDs might have attributes spanning multiple lines.
-        # Let's try a safer injection point: right before first AdaptationSet if Period injection fails?
-        # Or just append to beginning of Period children.
-
+        # Inject BaseURL after <Period ...>
         if "<Period" in mpd_content:
-            # We use a non-greedy match for attributes
             mpd_content = re.sub(r'(<Period[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1, flags=re.DOTALL)
         else:
             # Fallback: Inject after MPD start tag
-            # But BaseURL scope matters. Putting it in MPD root is also valid.
             mpd_content = re.sub(r'(<MPD[^>]*>)', fr'\1{base_url_xml}', mpd_content, count=1, flags=re.DOTALL)
 
         # Inject ContentProtection
@@ -207,6 +202,7 @@ def proxy_mpd(slug):
         resp = make_response(mpd_content)
         resp.headers['Content-Type'] = 'application/dash+xml'
         resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Headers'] = '*'
         return resp
 
     except Exception as e:
@@ -243,4 +239,5 @@ def license_server(slug):
 
     resp = jsonify(keys)
     resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Headers'] = '*'
     return resp
