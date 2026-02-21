@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from flix_stream.anime import (
     fetch_aniways_streams,
@@ -33,11 +33,29 @@ from flix_stream.famelack import (
     get_famelack_meta,
     get_famelack_streams,
 )
+from flix_stream.stmify import (
+    get_stmify_catalog,
+    get_stmify_hls_payload,
+    get_stmify_meta,
+    get_stmify_stream,
+)
 from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
 from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 
 app = Flask(__name__)
+
+STMIFY_CATALOGS = [
+    {"type": "series", "id": "stmify-trending", "name": "Stmify Trending", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-movies", "name": "Stmify Movies", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-sports", "name": "Stmify Sports", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-news", "name": "Stmify News", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-kids", "name": "Stmify Kids", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-music", "name": "Stmify Music", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-entertainment", "name": "Stmify Entertainment", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-infotainment", "name": "Stmify Infotainment", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-4k", "name": "Stmify 4K", "extra": [{"name": "skip", "isRequired": False}]},
+]
 
 
 def _support_stream():
@@ -130,9 +148,39 @@ def _build_manifest(addon_config):
                 "extra": [{"name": "skip", "isRequired": False}]
             })
     else:
-         # Clean up if not enabled
         id_prefixes = [prefix for prefix in id_prefixes if prefix != "famelack"]
         catalogs = [c for c in catalogs if not c["id"].startswith("famelack-")]
+
+    # Stmify Integration
+    if addon_config.get("enable_stmify"):
+        if "catalog" not in resources:
+            resources.append("catalog")
+        if "meta" not in resources:
+            resources.append("meta")
+        if "stmify" not in id_prefixes:
+            id_prefixes.append("stmify")
+
+        for stmify_cat in STMIFY_CATALOGS:
+            if not any(
+                isinstance(catalog, dict)
+                and catalog.get("type") == stmify_cat["type"]
+                and catalog.get("id") == stmify_cat["id"]
+                for catalog in catalogs
+            ):
+                catalogs.append(dict(stmify_cat))
+    else:
+        id_prefixes = [prefix for prefix in id_prefixes if prefix != "stmify"]
+        catalogs = [
+            catalog
+            for catalog in catalogs
+            if not (
+                isinstance(catalog, dict)
+                and any(
+                    catalog.get("type") == sc["type"] and catalog.get("id") == sc["id"]
+                    for sc in STMIFY_CATALOGS
+                )
+            )
+        ]
 
     manifest_data["resources"] = resources
     manifest_data["idPrefixes"] = id_prefixes
@@ -154,6 +202,8 @@ def _build_manifest(addon_config):
         provider_labels.append("Aniways")
     if famelack_countries:
         provider_labels.append(f"TV ({len(famelack_countries)})")
+    if addon_config.get("enable_stmify"):
+        provider_labels.append("Stmify")
 
     providers_text = ", ".join(provider_labels) if provider_labels else "none"
 
@@ -283,7 +333,6 @@ def _render_config_page(config_token=None):
     normalized_config = normalize_addon_config(initial_config)
     canonical_token = encode_addon_config(normalized_config)
 
-    # Note: stmify_channel_count removed
     return render_template(
         "index.html",
         default_config=normalize_addon_config(DEFAULT_ADDON_CONFIG),
@@ -319,9 +368,9 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
     if catalog_type != "series":
         return jsonify({"metas": []})
 
+    # Famelack Catalogs
     if catalog_id.startswith("famelack-"):
         code = catalog_id.replace("famelack-", "")
-        # Check if this code is in allowed countries
         allowed = addon_config.get("famelack_countries") or []
         if code.lower() not in [c.lower() for c in allowed]:
              return jsonify({"metas": []})
@@ -335,6 +384,21 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
         metas = get_famelack_catalog(code, skip=skip)
         return jsonify({"metas": metas})
 
+    # Stmify Catalogs
+    is_stmify_catalog = any(c["id"] == catalog_id for c in STMIFY_CATALOGS)
+    if is_stmify_catalog:
+        if not addon_config.get("enable_stmify"):
+             return jsonify({"metas": []})
+
+        if skip is None:
+            try:
+                skip = int(request.args.get("skip", "0"))
+            except Exception:
+                skip = 0
+        skip = max(skip, 0)
+        metas = get_stmify_catalog(catalog_id, skip=skip)
+        return jsonify({"metas": metas})
+
     return jsonify({"metas": []})
 
 
@@ -343,8 +407,17 @@ def _meta_response(content_type, raw_id, addon_config):
         return jsonify({"meta": None}), 404
 
     decoded_id = decode_stream_id(raw_id)
+
     if str(decoded_id).startswith("famelack:"):
         meta = get_famelack_meta(decoded_id)
+        if not isinstance(meta, dict):
+            return jsonify({"meta": None}), 404
+        return jsonify({"meta": meta})
+
+    if str(decoded_id).startswith("stmify:"):
+        if not addon_config.get("enable_stmify"):
+            return jsonify({"meta": None}), 404
+        meta = get_stmify_meta(decoded_id)
         if not isinstance(meta, dict):
             return jsonify({"meta": None}), 404
         return jsonify({"meta": meta})
@@ -391,7 +464,6 @@ def meta_with_config(config_token, type, id):
 @app.route("/api/famelack/countries")
 def api_famelack_countries():
     countries = get_famelack_countries()
-    # Convert to list for frontend: [{code: "US", name: "United States", hasChannels: true}, ...]
     result = []
     for code, data in countries.items():
         result.append({
@@ -401,6 +473,15 @@ def api_famelack_countries():
         })
     result.sort(key=lambda x: x["name"])
     return jsonify(result)
+
+# Stmify routes
+@app.route("/stmify/hls/<slug>.m3u8")
+def stmify_hls_proxy(slug):
+    target_url = str(request.args.get("u") or "").strip() or None
+    payload, status, content_type = get_stmify_hls_payload(slug, target_url=target_url)
+    if status != 200:
+        return payload, status
+    return Response(payload, status=200, content_type=content_type)
 
 
 def _stream_response(content_type, raw_id, addon_config):
@@ -413,6 +494,13 @@ def _stream_response(content_type, raw_id, addon_config):
         streams = get_famelack_streams(decoded_id)
         streams.append(_support_stream())
         return jsonify({"streams": streams})
+
+    if prefix == "stmify":
+        if not addon_config.get("enable_stmify"):
+            return jsonify({"streams": []})
+        stmify_streams = get_stmify_stream(decoded_id)
+        stmify_streams.append(_support_stream())
+        return jsonify({"streams": stmify_streams})
 
     if prefix in ("aniways", "kitsu"):
         if not addon_config.get("enable_aniways"):
