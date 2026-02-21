@@ -123,7 +123,9 @@
     "name": "UFC TV",
     "poster": "https://stmify.com/wp-content/uploads/2025/11/634-s-220x124.webp",
     "description": "Watch UFC TV live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/8mxwjnh2te/out/v1/356704796c0c4bed81f67cd3518d0c8a/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/8mxwjnh2te/out/v1/356704796c0c4bed81f67cd3518d0c8a/cenc.mpd",
+    "k1": "a49085f8da5e65af1efff0edac830b1f",
+    "k2": "4659bc58a85c062e3fe0c039a446fe47"
   },
   {
     "id": "stmify:cbs-sports-golazo-network",
@@ -132,25 +134,9 @@
     "name": "CBS Sports Golazo Network",
     "poster": "https://stmify.com/wp-content/uploads/2025/11/633-s-220x124.webp",
     "description": "Watch CBS Sports Golazo Network live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/rbem8rorcw/out/v1/5318821e2c3c44c2a439681b9aa86e9b/cenc.mpd"
-  },
-  {
-    "id": "stmify:telemundo",
-    "slug": "telemundo",
-    "type": "series",
-    "name": "Telemundo",
-    "poster": "https://stmify.com/wp-content/uploads/2025/11/632-s-220x124.webp",
-    "description": "Watch Telemundo live on Stmify.",
-    "stream_url": "https://nbculocallive.akamaized.net/hls/live/2037499/puertorico/stream1/master.m3u8"
-  },
-  {
-    "id": "stmify:cbs-sports-network",
-    "slug": "cbs-sports-network",
-    "type": "series",
-    "name": "Cbs Sports Network",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/631-s-220x124.webp",
-    "description": "Watch Cbs Sports Network live on Stmify.",
-    "stream_url": "https://fl1.moveonjoy.com/CBS_SPORTS_NETWORK/index.m3u8"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/rbem8rorcw/out/v1/5318821e2c3c44c2a439681b9aa86e9b/cenc.mpd",
+    "k1": "d9623774ac5c8c351aafe97c5fe70267",
+    "k2": "5164e6d05164a2d65fa8fcc962aa4861"
   },
   {
     "id": "stmify:sky-sports-laliga",
@@ -159,7 +145,9 @@
     "name": "Sky Sports Laliga",
     "poster": "https://stmify.com/wp-content/uploads/2025/10/629-s-220x124.webp",
     "description": "Watch Sky Sports Laliga live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/2/out/u/dash/SKY-SPORTS-16-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/2/out/u/dash/SKY-SPORTS-16-HD/default.mpd",
+    "k1": "c88dc6c668cac3b468d4a4c7e176ff3d",
+    "k2": "1aeb739de2c14ed0ad658ca8043208d8"
   },
   {
     "id": "stmify:bbc-entertainment",
@@ -168,79 +156,9 @@
     "name": "BBC Entertainment",
     "poster": "https://stmify.com/wp-content/uploads/2025/10/630-s-220x124.webp",
     "description": "Watch BBC Entertainment live on Stmify.",
-    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/sin-nitro/live/clients/dash/enc/nnhx4xadfk/out/v1/b716a65abc9d41cb8330ac655c098106/cenc.mpd"
-  },
-  {
-    "id": "stmify:sky-sports",
-    "slug": "sky-sports",
-    "type": "series",
-    "name": "Sky Sports",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/627-s-220x124.webp",
-    "description": "Watch Sky Sports live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/3/out/u/dash/SKY-SPORTS-HD/default.mpd"
-  },
-  {
-    "id": "stmify:laliga-tv",
-    "slug": "laliga-tv",
-    "type": "series",
-    "name": "LaLiga TV",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/269-s-220x124.webp",
-    "description": "Watch LaLiga TV live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/dub-nitro/live/clients/dash/enc/k0duzgfejg/out/v1/70a50b1bda944628b8e7e66ab4069419/cenc.mpd"
-  },
-  {
-    "id": "stmify:hbo-zone",
-    "slug": "hbo-zone",
-    "type": "series",
-    "name": "HBO Zone",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/626-s-220x124.webp",
-    "description": "Watch HBO Zone live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/u7xfabrc5b/out/v1/67371e988d6649afbde43ba1e9747550/cenc.mpd"
-  },
-  {
-    "id": "stmify:tennis-channel",
-    "slug": "tennis-channel",
-    "type": "series",
-    "name": "Tennis Channel",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/625-s-220x124.webp",
-    "description": "Watch Tennis Channel live on Stmify.",
-    "stream_url": "https://fl1.moveonjoy.com/TENNIS_CHANNEL/index.m3u8"
-  },
-  {
-    "id": "stmify:mgm-plus-marquee",
-    "slug": "mgm-plus-marquee",
-    "type": "series",
-    "name": "MGM+ Marquee",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/624-s-220x124.webp",
-    "description": "Watch MGM+ Marquee live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/y7rqqxcdk4/out/v1/fb99f1f5705d4f3194e9a234ef717bd5/cenc.mpd"
-  },
-  {
-    "id": "stmify:mgm-plus",
-    "slug": "mgm-plus",
-    "type": "series",
-    "name": "MGM+",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/623-s-220x124.webp",
-    "description": "Watch MGM+ live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/ck8h9qqlfr/out/v1/34a373fb214d4e1590a3ab397b2d7af1/cenc.mpd"
-  },
-  {
-    "id": "stmify:bbc-first",
-    "slug": "bbc-first",
-    "type": "series",
-    "name": "BBC First",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/622-s-220x124.webp",
-    "description": "Watch BBC First live on Stmify.",
-    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/sin-nitro/live/clients/dash/enc/dxhd2i96mn/out/v1/c622abb40a8143d08135f5d8a5fccdc9/cenc.mpd"
-  },
-  {
-    "id": "stmify:5starmax",
-    "slug": "5starmax",
-    "type": "series",
-    "name": "5StarMAX",
-    "poster": "https://stmify.com/wp-content/uploads/2025/10/621-s-220x124.webp",
-    "description": "Watch 5StarMAX live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/yfo5p7nmtt/out/v1/fdce98358ffb47c9b6314feb9cfeda3f/cenc.mpd"
+    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/sin-nitro/live/clients/dash/enc/nnhx4xadfk/out/v1/b716a65abc9d41cb8330ac655c098106/cenc.mpd",
+    "k1": "de6c62edc50564a1bcd57bd452e00dec",
+    "k2": "5587a0221df02bc10bcc80f8fc1fe5f4"
   },
   {
     "id": "stmify:hbo-boxing",
@@ -249,7 +167,9 @@
     "name": "HBO Boxing",
     "poster": "https://stmify.com/wp-content/uploads/2025/10/620-s-220x124.webp",
     "description": "Watch HBO Boxing live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/dub-nitro/live/clients/dash/enc/cmtyd9kpfe/out/v1/813bba04214e4f4dab57f0129365635a/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/dub-nitro/live/clients/dash/enc/cmtyd9kpfe/out/v1/813bba04214e4f4dab57f0129365635a/cenc.mpd",
+    "k1": "a4b2fe10c9d62d32220e8ea2dceda6f9",
+    "k2": "e6e1173c892f7fbd60a37a76a78935cb"
   },
   {
     "id": "stmify:amc-crime",
@@ -259,24 +179,6 @@
     "poster": "https://stmify.com/wp-content/uploads/2025/08/394-s-220x124.webp",
     "description": "Watch AMC Crime live on Stmify.",
     "stream_url": "https://cdn.stmify.com/out/v1/CRIME/278866_.m3u8"
-  },
-  {
-    "id": "stmify:canal-hollywood",
-    "slug": "canal-hollywood",
-    "type": "series",
-    "name": "Canal Hollywood",
-    "poster": "https://stmify.com/wp-content/uploads/2025/08/396-s-220x124.webp",
-    "description": "Watch Canal Hollywood live on Stmify.",
-    "stream_url": "https://cdn.stmify.com/out/v1/HOLLYWOOD/278839_.m3u8"
-  },
-  {
-    "id": "stmify:france-5",
-    "slug": "france-5",
-    "type": "series",
-    "name": "France 5",
-    "poster": "https://stmify.com/wp-content/uploads/2025/05/616-s-220x124.webp",
-    "description": "Watch France 5 live on Stmify.",
-    "stream_url": "https://raw.githubusercontent.com/mikekaprielian/rtnaodhor93n398/refs/heads/main/fr/videof5.m3u8"
   },
   {
     "id": "stmify:france-2",
@@ -369,22 +271,15 @@
     "stream_url": "https://tgn.bozztv.com/gin-36bay3/ga-rotanacinema-egypt/index.m3u8?wmsAuthSign=c2VydmVyX3RpbWU9MTIvMTgvMjAyNSA3OjIwOjMzIEFNJmhhc2hfdmFsdWU9dnpHQktyNWJSaGZmZWhoeUNRVTF5QT09JnZhbGlkbWludXRlcz0xNDQwJnN0cm1fbGVuPTMy"
   },
   {
-    "id": "stmify:mbc-2",
-    "slug": "mbc-2",
-    "type": "series",
-    "name": "MBC 2",
-    "poster": "https://stmify.com/wp-content/uploads/2025/04/387-s-220x124.webp",
-    "description": "Watch MBC 2 live on Stmify.",
-    "stream_url": "https://shd-gcp-live.akamaized.net/live/bitmovin-mbc-2/51db9d7fa48a27d051f1eecb68069151/index.mpd"
-  },
-  {
     "id": "stmify:filmgold",
     "slug": "filmgold",
     "type": "series",
     "name": "Filmgold",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/598-s-220x124.webp",
     "description": "Watch Filmgold live on Stmify.",
-    "stream_url": "https://ac-009.live.p7s1video.net/f5bbcc12/t_009/filmgold-hd/cenc-default.mpd"
+    "stream_url": "https://ac-009.live.p7s1video.net/f5bbcc12/t_009/filmgold-hd/cenc-default.mpd",
+    "k1": "e603533d5d9b02da5fe7ab5ecb5ddd21",
+    "k2": "b66b78735467717947d18e9abfba6b9a"
   },
   {
     "id": "stmify:cgtn-documentary",
@@ -411,7 +306,9 @@
     "name": "Rai Italia",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/591-s-220x124.webp",
     "description": "Watch Rai Italia live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/RAI-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/RAI-HD/default.mpd",
+    "k1": "65b6395665d92c16e12f202c9480c425",
+    "k2": "eda358f71a474029f1580327ae6766e1"
   },
   {
     "id": "stmify:club-mtv",
@@ -420,7 +317,9 @@
     "name": "Club MTV",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/408-s-220x124.webp",
     "description": "Watch Club MTV live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/CLUBMTVSD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/CLUBMTVSD/default.mpd",
+    "k1": "1da2977f5fed3acb602cc2c8b57c41c1",
+    "k2": "09aaed2aeee31130fa8f869faff25ee5"
   },
   {
     "id": "stmify:mtv-80s",
@@ -429,7 +328,9 @@
     "name": "MTV 80s",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/400-s-220x124.webp",
     "description": "Watch MTV 80s live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/MTV80SSD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/MTV80SSD/default.mpd",
+    "k1": "b515c27589fda8f9607e7949697de6b3",
+    "k2": "27d2061c0972931e18d43fbb3301c6f0"
   },
   {
     "id": "stmify:mtv-00s",
@@ -438,7 +339,9 @@
     "name": "MTV 00s",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/401-s-220x124.webp",
     "description": "Watch MTV 00s live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/3/out/u/dash/MTV00HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/3/out/u/dash/MTV00HD/default.mpd",
+    "k1": "53a3776a034dbe5f483d0f3a46f5fddf",
+    "k2": "db9d0d03592fbe9f4429ef1a82eb47aa"
   },
   {
     "id": "stmify:mtv-hits",
@@ -447,7 +350,9 @@
     "name": "MTV Hits",
     "poster": "https://stmify.com/wp-content/uploads/2025/04/399-s-220x124.webp",
     "description": "Watch MTV Hits live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/MTVHITSSD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/4/out/u/dash/MTVHITSSD/default.mpd",
+    "k1": "0b5868bc161634a033a19a20f3f3595d",
+    "k2": "b336c8c6bb249b1a5f89dace8d9889e5"
   },
   {
     "id": "stmify:mtv",
@@ -486,49 +391,15 @@
     "stream_url": "https://fl1.moveonjoy.com/DISNEY_XD/index.m3u8"
   },
   {
-    "id": "stmify:tsn5",
-    "slug": "tsn5",
-    "type": "series",
-    "name": "TSN5",
-    "poster": "https://stmify.com/wp-content/uploads/2025/03/580-s-220x124.webp",
-    "description": "Watch TSN5 live on Stmify.",
-    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/mttgh1c4ei/out/v1/9cc664b146744e2ba23066aa048efbc5/cenc.mpd"
-  },
-  {
-    "id": "stmify:disney-jr",
-    "slug": "disney-jr",
-    "type": "series",
-    "name": "Disney Jr.",
-    "poster": "https://stmify.com/wp-content/uploads/2025/03/185-s-220x124.webp",
-    "description": "Watch Disney Jr. live on Stmify.",
-    "stream_url": "https://fl1.moveonjoy.com/DISNEY_JR/index.m3u8"
-  },
-  {
     "id": "stmify:tsn4",
     "slug": "tsn4",
     "type": "series",
     "name": "TSN4",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/579-s-220x124.webp",
     "description": "Watch TSN4 live on Stmify.",
-    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/irtfdsri14/out/v1/165128c314e944faa3d79e107974b323/cenc.mpd"
-  },
-  {
-    "id": "stmify:disney-channel",
-    "slug": "disney-channel",
-    "type": "series",
-    "name": "Disney Channel",
-    "poster": "https://stmify.com/wp-content/uploads/2025/03/166-s-220x124.webp",
-    "description": "Watch Disney Channel live on Stmify.",
-    "stream_url": "https://a77aivottepl-a.akamaihd.net/pdx-nitro/live/clients/dash/enc/zuf794yutz/out/v1/ca3534bfe4f148298b36719204d108e0/cenc.mpd"
-  },
-  {
-    "id": "stmify:tsn3",
-    "slug": "tsn3",
-    "type": "series",
-    "name": "TSN3",
-    "poster": "https://stmify.com/wp-content/uploads/2025/03/578-s-220x124.webp",
-    "description": "Watch TSN3 live on Stmify.",
-    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/mrskysvotx/out/v1/ad58961bd8fd48d2944e461c034b8914/cenc.mpd"
+    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/irtfdsri14/out/v1/165128c314e944faa3d79e107974b323/cenc.mpd",
+    "k1": "e1aa4c4daf6222a04f7ae80130495ea1",
+    "k2": "31bb1ee9a8d088f62b0103550c301449"
   },
   {
     "id": "stmify:tsn2",
@@ -537,7 +408,9 @@
     "name": "TSN2",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/577-s-220x124.webp",
     "description": "Watch TSN2 live on Stmify.",
-    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/v5v9yfn62i/out/v1/0991e33d09da46b2857fcc845db95c40/cenc.mpd"
+    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/v5v9yfn62i/out/v1/0991e33d09da46b2857fcc845db95c40/cenc.mpd",
+    "k1": "362202eefc5d9e42eec6450998cce9e8",
+    "k2": "978dfdd53186ec587d940e0bd1e2ec42"
   },
   {
     "id": "stmify:tsn1",
@@ -546,7 +419,9 @@
     "name": "TSN1",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/576-s-220x124.webp",
     "description": "Watch TSN1 live on Stmify.",
-    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/u142pfptsm/out/v1/1caa3b2dfa9e448d8f61209bdfc1acdc/cenc.mpd"
+    "stream_url": "https://otte.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/u142pfptsm/out/v1/1caa3b2dfa9e448d8f61209bdfc1acdc/cenc.mpd",
+    "k1": "7e99f734748d098cbfa2f7bde968dd44",
+    "k2": "98ea6088c3222e9abaf61e537804d6cc"
   },
   {
     "id": "stmify:ytv",
@@ -555,7 +430,9 @@
     "name": "YTV",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/573-s-220x124.webp",
     "description": "Watch YTV live on Stmify.",
-    "stream_url": "https://a196aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/o7aqpbb6vv/out/v1/f8f6ef738ef24c4f8176d561ffb8a157/cenc.mpd"
+    "stream_url": "https://a196aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/o7aqpbb6vv/out/v1/f8f6ef738ef24c4f8176d561ffb8a157/cenc.mpd",
+    "k1": "6f0aeae5779f1dcaef23f0bfbc828220",
+    "k2": "7bcef3cf93de00e3daeb190d15b1ec05"
   },
   {
     "id": "stmify:treehouse-tv",
@@ -564,7 +441,9 @@
     "name": "Treehouse TV",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/572-s-220x124.webp",
     "description": "Watch Treehouse TV live on Stmify.",
-    "stream_url": "https://a79aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/ghf7y1plnj/out/v1/0c87bd17ab474015b77c0f3028190f78/cenc.mpd"
+    "stream_url": "https://a79aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/ghf7y1plnj/out/v1/0c87bd17ab474015b77c0f3028190f78/cenc.mpd",
+    "k1": "de9b995d2aba32bae1c5dbe38a46f2d9",
+    "k2": "a2d94fdff16e9c332164a73f8b170bd3"
   },
   {
     "id": "stmify:adult-swim",
@@ -573,7 +452,9 @@
     "name": "Adult Swim",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/570-s-220x124.webp",
     "description": "Watch Adult Swim live on Stmify.",
-    "stream_url": "https://a116aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/rwcf8uax9l/out/v1/13ccaaacbe1143e69b7732fced73f0ab/cenc.mpd"
+    "stream_url": "https://a116aivottlinear-a.akamaihd.net/OTTB/pdx-nitro/live/clients/dash/enc/rwcf8uax9l/out/v1/13ccaaacbe1143e69b7732fced73f0ab/cenc.mpd",
+    "k1": "cc26110bb0d29d0e4452d42602846080",
+    "k2": "4a2e5782e26a3e2d7dd0431205c14518"
   },
   {
     "id": "stmify:oxygen",
@@ -591,7 +472,9 @@
     "name": "HBO Xtreme",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/325-s-220x124.webp",
     "description": "Watch HBO Xtreme live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-XTREME-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-XTREME-HD/default.mpd",
+    "k1": "bc8d4369fcff86db765db82356b4797c",
+    "k2": "8a7e801dbc275e3f4e1f43cba648906a"
   },
   {
     "id": "stmify:hbo-pop",
@@ -600,7 +483,9 @@
     "name": "HBO Pop",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/569-s-220x124.webp",
     "description": "Watch HBO Pop live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-POP-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-POP-HD/default.mpd",
+    "k1": "bcf36f412fa3d735cea04f7443fbf77c",
+    "k2": "6ff29fb2d6b7d825eb06004650a0a4ea"
   },
   {
     "id": "stmify:hbo-mundi",
@@ -609,7 +494,9 @@
     "name": "HBO Mundi",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/568-s-220x124.webp",
     "description": "Watch HBO Mundi live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-MUNDI-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-MUNDI-HD/default.mpd",
+    "k1": "ba4052ca5eb6f8ff6b98d47d098b2dec",
+    "k2": "bb3e4bfa1821d2bdc25c9a0970e4e3b8"
   },
   {
     "id": "stmify:ary-zindagi",
@@ -618,7 +505,9 @@
     "name": "ARY Zindagi",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/567-s-220x124.webp",
     "description": "Watch ARY Zindagi live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/ARY_Zindagae/DASH/ARY_Zindagae.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/ARY_Zindagae/DASH/ARY_Zindagae.mpd",
+    "k1": "b7a0caf4ffb4b8010eeb51558ca2d29a",
+    "k2": "26220c96f83015d580f455baa4dbfe20"
   },
   {
     "id": "stmify:a-plus-tv",
@@ -627,7 +516,9 @@
     "name": "A-Plus TV",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/566-s-220x124.webp",
     "description": "Watch A-Plus TV live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/A_Plus/DASH/A_Plus.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/A_Plus/DASH/A_Plus.mpd",
+    "k1": "54aa47ddf8d6cbc147b7e61854d06dbb",
+    "k2": "afbef7ea4cce38bd7c84303bb7246756"
   },
   {
     "id": "stmify:phoenix-chinese",
@@ -681,7 +572,9 @@
     "name": "MovieMax",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/555-s-220x124.webp",
     "description": "Watch MovieMax live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/grtjzrom8b/out/v1/dbd3bca5cad44a8c8fb2e075aa08a824/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/grtjzrom8b/out/v1/dbd3bca5cad44a8c8fb2e075aa08a824/cenc.mpd",
+    "k1": "14a9a68a9da25997087bd8d6613d4d40",
+    "k2": "29ab18369310657053f55d4172981e92"
   },
   {
     "id": "stmify:moremax",
@@ -690,7 +583,9 @@
     "name": "MoreMax",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/554-s-220x124.webp",
     "description": "Watch MoreMax live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/bw5g1vx3k9/out/v1/6913f190498b44c8a705e91728401769/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/bw5g1vx3k9/out/v1/6913f190498b44c8a705e91728401769/cenc.mpd",
+    "k1": "046c374a3db594dfb32cba86d2e4f72f",
+    "k2": "04c00a6ed0fc4ce37841210a42eeeb35"
   },
   {
     "id": "stmify:actionmax",
@@ -699,7 +594,9 @@
     "name": "ActionMax",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/553-s-220x124.webp",
     "description": "Watch ActionMax live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/995zvakyej/out/v1/3fa049c0afea4a83bb5f508f1859f160/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/995zvakyej/out/v1/3fa049c0afea4a83bb5f508f1859f160/cenc.mpd",
+    "k1": "136a75130b82cdf89cb5f05d739b663f",
+    "k2": "0ef360ff75bb11b7f0982a86b86d39ae"
   },
   {
     "id": "stmify:bol-entertainment",
@@ -708,7 +605,9 @@
     "name": "Bol Entertainment",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/552-s-220x124.webp",
     "description": "Watch Bol Entertainment live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Bol_Entertainment/DASH/Bol_Entertainment.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/Bol_Entertainment/DASH/Bol_Entertainment.mpd",
+    "k1": "1ab9491349c9b6217b8e7cec08e6b5a3",
+    "k2": "f37b1bbe691db067003522b053251945"
   },
   {
     "id": "stmify:asharq-discovery",
@@ -780,7 +679,9 @@
     "name": "Starzplay Sports",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/543-s-220x124.webp",
     "description": "Watch Starzplay Sports live on Stmify.",
-    "stream_url": "https://sps1.starzplayarabia.com/out/v1/eee188845e9543699fd24e5a9890c6e2/index.mpd"
+    "stream_url": "https://sps1.starzplayarabia.com/out/v1/eee188845e9543699fd24e5a9890c6e2/index.mpd",
+    "k1": "b253c726c24c7c94a3ddf9b1907e2c76",
+    "k2": "097963d6ad73c3d712a104981de0ed42"
   },
   {
     "id": "stmify:mbc-drama",
@@ -807,16 +708,9 @@
     "name": "Kidzone",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/537-s-220x124.webp",
     "description": "Watch Kidzone live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Kids_Zone_Plus/DASH/Kids_Zone_Plus.mpd"
-  },
-  {
-    "id": "stmify:okoo",
-    "slug": "okoo",
-    "type": "series",
-    "name": "Okoo",
-    "poster": "https://stmify.com/wp-content/uploads/2025/03/536-s-220x124.webp",
-    "description": "Watch Okoo live on Stmify.",
-    "stream_url": "https://raw.githubusercontent.com/mikekaprielian/rtnaodhor93n398/refs/heads/main/fr/videof4.m3u8"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/Kids_Zone_Plus/DASH/Kids_Zone_Plus.mpd",
+    "k1": "ec087eb4cd899e1a068083608f0aa3f6",
+    "k2": "f36cd5dddd56ca76246a62b7b02148c9"
   },
   {
     "id": "stmify:lotus-tv-macau",
@@ -825,7 +719,9 @@
     "name": "Lotus TV Macau",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/535-s-1-220x124.webp",
     "description": "Watch Lotus TV Macau live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/lotusmacau_prd/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/lotusmacau_prd/default/index.mpd",
+    "k1": "60dc692e64ea443a8fb5ac186c865a9b",
+    "k2": "01bdbe22d59b2a4504b53adc2f606cc1"
   },
   {
     "id": "stmify:one-championship",
@@ -834,7 +730,9 @@
     "name": "One Championship",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/532-s-220x124.webp",
     "description": "Watch One Championship live on Stmify.",
-    "stream_url": "https://tglmp02.akamaized.net/out/v1/3170252e3fb0453085f2f4b0f8401a6b/manifest.mpd"
+    "stream_url": "https://tglmp02.akamaized.net/out/v1/3170252e3fb0453085f2f4b0f8401a6b/manifest.mpd",
+    "k1": "60dc08aae52f4c0b806a8e43f24a12c8",
+    "k2": "30d5b579966d822b215ec51a91d8a271"
   },
   {
     "id": "stmify:dazn-2",
@@ -852,7 +750,9 @@
     "name": "ScreenPix Action",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/527-s-220x124.webp",
     "description": "Watch ScreenPix Action live on Stmify.",
-    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/PDX/clients/dash/enc/2bsytxoitz/out/v1/312e6d1e20e744c0a9bf25519f6da91b/cenc.mpd"
+    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/PDX/clients/dash/enc/2bsytxoitz/out/v1/312e6d1e20e744c0a9bf25519f6da91b/cenc.mpd",
+    "k1": "a340ce5a22ce1a5f54c2c5dd18e8fe7d",
+    "k2": "afa091d637e61d585ad036fd4b8a3235"
   },
   {
     "id": "stmify:mgm-plus-hits",
@@ -861,7 +761,9 @@
     "name": "MGM+ Hits",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/526-s-220x124.webp",
     "description": "Watch MGM+ Hits live on Stmify.",
-    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/6twfogu6go/out/v1/fe3c6ff9c8d94b2187e2e87b4edacca8/cenc.mpd"
+    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/6twfogu6go/out/v1/fe3c6ff9c8d94b2187e2e87b4edacca8/cenc.mpd",
+    "k1": "563740ab2942d108384539e507d268a3",
+    "k2": "fb51835b952fab5a9d5233c771da1d3d"
   },
   {
     "id": "stmify:mgm-plus-drive-in",
@@ -870,7 +772,9 @@
     "name": "MGM+ Drive-In",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/525-s-220x124.webp",
     "description": "Watch MGM+ Drive-In live on Stmify.",
-    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/ijf9c1nj9l/out/v1/d8018bfb87ac4be1840dbc18b31f2fed/cenc.mpd"
+    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/pdx-nitro/live/clients/dash/enc/ijf9c1nj9l/out/v1/d8018bfb87ac4be1840dbc18b31f2fed/cenc.mpd",
+    "k1": "0b74cf4e95c3dac51f8445d044d5fa11",
+    "k2": "abe32ddf4ab8e451b505354d55629785"
   },
   {
     "id": "stmify:bbc-lifestyle",
@@ -897,7 +801,9 @@
     "name": "Times Now",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/523-s-220x124.webp",
     "description": "Watch Times Now live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:timesnowdrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:timesnowdrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:tv-derana",
@@ -906,7 +812,9 @@
     "name": "TV Derana",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/521-s-220x124.webp",
     "description": "Watch TV Derana live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:deranatvdrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:deranatvdrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:go3-sport-open",
@@ -915,7 +823,9 @@
     "name": "Go3 Sport Open",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/519-s-220x124.webp",
     "description": "Watch Go3 Sport Open live on Stmify.",
-    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/561402/index.mpd"
+    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/561402/index.mpd",
+    "k1": "a6b967afcb974bb5a549377b4f09befd",
+    "k2": "87d993257a099324ccd0215475fc61a0"
   },
   {
     "id": "stmify:go3-sport-2",
@@ -924,7 +834,9 @@
     "name": "Go3 Sport 2",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/518-s-220x124.webp",
     "description": "Watch Go3 Sport 2 live on Stmify.",
-    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/560505/index.mpd"
+    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/560505/index.mpd",
+    "k1": "8315b1996d92477b965cb29100a3dc07",
+    "k2": "0081c0674e9047e219caa27a07da9d4b"
   },
   {
     "id": "stmify:go3-sport-1",
@@ -933,7 +845,9 @@
     "name": "Go3 Sport 1",
     "poster": "https://stmify.com/wp-content/uploads/2025/03/517-s-220x124.webp",
     "description": "Watch Go3 Sport 1 live on Stmify.",
-    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/560502/index.mpd"
+    "stream_url": "https://v4-pan-n79-cdn-01.live.cdn.cgates.lt/live/dash/560502/index.mpd",
+    "k1": "f48a8131e05f4d6e84de19f086c781a6",
+    "k2": "fd28f2f966a906f4d4dcfd72ae90094e"
   },
   {
     "id": "stmify:mbc-3",
@@ -942,7 +856,9 @@
     "name": "MBC 3",
     "poster": "https://stmify.com/wp-content/uploads/2025/02/516-s-220x124.webp",
     "description": "Watch MBC 3 live on Stmify.",
-    "stream_url": "https://shd-gcp-live.akamaized.net/live/bitmovin-mbc-3/946fc698e47c30df2193962ca541d868/index.mpd"
+    "stream_url": "https://shd-gcp-live.akamaized.net/live/bitmovin-mbc-3/946fc698e47c30df2193962ca541d868/index.mpd",
+    "k1": "e3ce77324a3d4fa2a913b26cc1976052",
+    "k2": "17774f82a3b9e33ea7a149596acbb20f"
   },
   {
     "id": "stmify:rotana-kids",
@@ -960,7 +876,9 @@
     "name": "AMC+",
     "poster": "https://stmify.com/wp-content/uploads/2025/02/511-s-220x124.webp",
     "description": "Watch AMC+ live on Stmify.",
-    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/PDX/clients/dash/enc/0f5clvxn6o/out/v1/d5a953bb19734fa3baa1776266887fcb/cenc.mpd"
+    "stream_url": "https://OTTB.live.cf.ww.aiv-cdn.net/PDX/clients/dash/enc/0f5clvxn6o/out/v1/d5a953bb19734fa3baa1776266887fcb/cenc.mpd",
+    "k1": "59a51164c2c915352f04066a06f6e807",
+    "k2": "eba5cc362d1d63c0fe6460febca0fd11"
   },
   {
     "id": "stmify:kapamilya-channel",
@@ -969,7 +887,9 @@
     "name": "Kapamilya Channel",
     "poster": "https://stmify.com/wp-content/uploads/2025/02/509-s-220x124.webp",
     "description": "Watch Kapamilya Channel live on Stmify.",
-    "stream_url": "https://cdn-ue1-prod.tsv2.amagi.tv/linear/amg01006-abs-cbn-kapcha-dash-abscbnono/index.mpd"
+    "stream_url": "https://cdn-ue1-prod.tsv2.amagi.tv/linear/amg01006-abs-cbn-kapcha-dash-abscbnono/index.mpd",
+    "k1": "bd17afb5dc9648a39be79ee3634dd4b8",
+    "k2": "3ecf305d54a7729299b93a3d69c02ea5"
   },
   {
     "id": "stmify:wwe-network",
@@ -987,7 +907,9 @@
     "name": "Geo Television",
     "poster": "https://stmify.com/wp-content/uploads/2025/02/505-s-220x124.webp",
     "description": "Watch Geo Television live on Stmify.",
-    "stream_url": "https://pnowlive-a.akamaized.net/live/geohd/dash/geohd.mpd"
+    "stream_url": "https://pnowlive-a.akamaized.net/live/geohd/dash/geohd.mpd",
+    "k1": "f4353e4b22b7469eb4740a530296af84",
+    "k2": "de8c428017e29a2f461d13be4bd68671"
   },
   {
     "id": "stmify:cctv4",
@@ -1023,7 +945,9 @@
     "name": "Event TV",
     "poster": "https://stmify.com/wp-content/uploads/2025/02/497-s-220x124.webp",
     "description": "Watch Event TV live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:eventtvdrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:eventtvdrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:w9",
@@ -1059,7 +983,9 @@
     "name": "Sangeet Bhojpuri",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/491-s-220x124.webp",
     "description": "Watch Sangeet Bhojpuri live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Sangeetbhojpuri2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Sangeetbhojpuri2/default/manifest.mpd",
+    "k1": "eeb0cd6768be49eeb8eac3df17638a4e",
+    "k2": "3496163276404b46906865eadd195e67"
   },
   {
     "id": "stmify:movies-now",
@@ -1068,43 +994,9 @@
     "name": "Movies Now",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/490-s-220x124.webp",
     "description": "Watch Movies Now live on Stmify.",
-    "stream_url": "https://times-ott-live.akamaized.net/moviesnow_wv_drm/index.mpd"
-  },
-  {
-    "id": "stmify:romedy-now",
-    "slug": "romedy-now",
-    "type": "series",
-    "name": "Romedy Now",
-    "poster": "https://stmify.com/wp-content/uploads/2025/01/489-s-220x124.webp",
-    "description": "Watch Romedy Now live on Stmify.",
-    "stream_url": "https://times-ott-live.akamaized.net/romedynow_wv_drm/index.mpd"
-  },
-  {
-    "id": "stmify:planet-fun",
-    "slug": "planet-fun",
-    "type": "series",
-    "name": "Planet Fun",
-    "poster": "https://stmify.com/wp-content/uploads/2025/01/488-s-220x124.webp",
-    "description": "Watch Planet Fun live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Planet_Fun/DASH/Planet_Fun.mpd"
-  },
-  {
-    "id": "stmify:tmc",
-    "slug": "tmc",
-    "type": "series",
-    "name": "TMC",
-    "poster": "https://stmify.com/wp-content/uploads/2025/01/487-s-220x124.webp",
-    "description": "Watch TMC live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_tagalogmovie/default/index.mpd"
-  },
-  {
-    "id": "stmify:lifetime",
-    "slug": "lifetime",
-    "type": "series",
-    "name": "Lifetime",
-    "poster": "https://stmify.com/wp-content/uploads/2025/01/486-s-220x124.webp",
-    "description": "Watch Lifetime live on Stmify.",
-    "stream_url": "https://fl1.moveonjoy.com/LIFETIME/index.m3u8"
+    "stream_url": "https://times-ott-live.akamaized.net/moviesnow_wv_drm/index.mpd",
+    "k1": "40f019b86241d23ef075633fd7f1e927",
+    "k2": "058dec845bd340178a388edd104a015e"
   },
   {
     "id": "stmify:mbc-action",
@@ -1113,7 +1005,9 @@
     "name": "MBC Action",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/484-s-220x124.webp",
     "description": "Watch MBC Action live on Stmify.",
-    "stream_url": "https://neacdnpop3-edge02.aws.playco.com/live/eds/MBC_Action_HD/DASH/MBC_Action_HD.mpd"
+    "stream_url": "https://neacdnpop3-edge02.aws.playco.com/live/eds/MBC_Action_HD/DASH/MBC_Action_HD.mpd",
+    "k1": "d889ec7cb5cd8acb44f702726a56ae21",
+    "k2": "37be04cfb92f19ecd6074b976c1f3c54"
   },
   {
     "id": "stmify:geo-news",
@@ -1122,7 +1016,9 @@
     "name": "Geo News",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/223-s-220x124.webp",
     "description": "Watch Geo News live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Geo_News/DASH/Geo_News.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/Geo_News/DASH/Geo_News.mpd",
+    "k1": "a7c70965dd6e0138bba0e754a782ba76",
+    "k2": "4f78ca41cda11fb207631815f0d414f4"
   },
   {
     "id": "stmify:shorts-tv-active",
@@ -1131,16 +1027,9 @@
     "name": "Shorts TV Active",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/479-s-220x124.webp",
     "description": "Watch Shorts TV Active live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Shortstv2/default/manifest.mpd"
-  },
-  {
-    "id": "stmify:korean-drama-active",
-    "slug": "korean-drama-active",
-    "type": "series",
-    "name": "Korean Drama Active",
-    "poster": "https://stmify.com/wp-content/uploads/2025/01/478-s-220x124.webp",
-    "description": "Watch Korean Drama Active live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Koreandramas2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Shortstv2/default/manifest.mpd",
+    "k1": "b994480f788d41ddbc805862ac469416",
+    "k2": "78a6a0fc1758483595da7113e58e4467"
   },
   {
     "id": "stmify:zoom",
@@ -1149,7 +1038,9 @@
     "name": "Zoom",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/477-s-220x124.webp",
     "description": "Watch Zoom live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zoom2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zoom2/default/manifest.mpd",
+    "k1": "86edec9e3b7d4042a4d4a1ca14f847ee",
+    "k2": "9def4315f0004019a3705bcb3cf30ca3"
   },
   {
     "id": "stmify:filmax",
@@ -1158,7 +1049,9 @@
     "name": "Filmax",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/476-s-220x124.webp",
     "description": "Watch Filmax live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/FILMAX/DASH/FILMAX.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/FILMAX/DASH/FILMAX.mpd",
+    "k1": "eefc4c6db6d961885314bb5c58fd226b",
+    "k2": "da646d01cc7a852b093854299dbc7b87"
   },
   {
     "id": "stmify:film-world",
@@ -1167,7 +1060,9 @@
     "name": "Film World",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/475-s-220x124.webp",
     "description": "Watch Film World live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Film_World/DASH/Film_World.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/Film_World/DASH/Film_World.mpd",
+    "k1": "501c219f6640b42b454a1fc3bda48a7e",
+    "k2": "d547a7eaac74ae83cadcaddb6243978f"
   },
   {
     "id": "stmify:mn-plus",
@@ -1176,7 +1071,9 @@
     "name": "MN Plus",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/468-s-220x124.webp",
     "description": "Watch MN Plus live on Stmify.",
-    "stream_url": "https://times-ott-live.akamaized.net/mnplus_wv_drm/index.mpd"
+    "stream_url": "https://times-ott-live.akamaized.net/mnplus_wv_drm/index.mpd",
+    "k1": "40f019b86241d23ef075633fd7f1e927",
+    "k2": "058dec845bd340178a388edd104a015e"
   },
   {
     "id": "stmify:mnx",
@@ -1185,7 +1082,9 @@
     "name": "MNX",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/467-s-220x124.webp",
     "description": "Watch MNX live on Stmify.",
-    "stream_url": "https://times-ott-live.akamaized.net/mnxhd_wv_drm/index.mpd"
+    "stream_url": "https://times-ott-live.akamaized.net/mnxhd_wv_drm/index.mpd",
+    "k1": "40f019b86241d23ef075633fd7f1e927",
+    "k2": "058dec845bd340178a388edd104a015e"
   },
   {
     "id": "stmify:a2z",
@@ -1194,7 +1093,9 @@
     "name": "A2Z",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/466-s-220x124.webp",
     "description": "Watch A2Z live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_a2z/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_a2z/default/index.mpd",
+    "k1": "f703e4c8ec9041eeb5028ab4248fa094",
+    "k2": "c22f2162e176eee6273a5d0b68d19530"
   },
   {
     "id": "stmify:zhejiang-tv",
@@ -1212,7 +1113,9 @@
     "name": "Oh My Ceria!",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/455-s-220x124.webp",
     "description": "Watch Oh My Ceria! live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_7/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_7/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:sony-max",
@@ -1230,7 +1133,9 @@
     "name": "9X Jalwa",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/149-s-220x124.webp",
     "description": "Watch 9X Jalwa live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/9xjalwa2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/9xjalwa2/default/manifest.mpd",
+    "k1": "0538cf4c5ed546a9956aadab2fdf3366",
+    "k2": "b0af534e1a5f459f9c751a0cb9d12d4c"
   },
   {
     "id": "stmify:clan",
@@ -1311,7 +1216,9 @@
     "name": "9XM",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/7-s-220x124.webp",
     "description": "Watch 9XM live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/9xm2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/9xm2/default/manifest.mpd",
+    "k1": "29f970f3bdef4935b7b2b6ace0316266",
+    "k2": "8e7efefcf8c843a184977c6c7063487c"
   },
   {
     "id": "stmify:ion-plus",
@@ -1338,7 +1245,9 @@
     "name": "Drama Hotpot",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/429-s-220x124.webp",
     "description": "Watch Drama Hotpot live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_4/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_4/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:drama-hebat",
@@ -1347,7 +1256,9 @@
     "name": "Drama Hebat",
     "poster": "https://stmify.com/wp-content/uploads/2025/01/426-s-220x124.webp",
     "description": "Watch Drama Hebat live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_1/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_1/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:la-1",
@@ -1383,7 +1294,9 @@
     "name": "Lawak Sentral",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/419-s-220x124.webp",
     "description": "Watch Lawak Sentral live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_3/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_3/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:tvn-movies-pinoy",
@@ -1392,7 +1305,9 @@
     "name": "tvN Movies Pinoy",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/418-s-220x124.webp",
     "description": "Watch tvN Movies Pinoy live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tvnmovie/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tvnmovie/default/index.mpd",
+    "k1": "2e53f8d8a5e94bca8f9a1e16ce67df33",
+    "k2": "3471b2464b5c7b033a03bb8307d9fa35"
   },
   {
     "id": "stmify:tvn",
@@ -1401,7 +1316,9 @@
     "name": "tvN",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/417-s-220x124.webp",
     "description": "Watch tvN live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tvnpre/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tvnpre/default/index.mpd",
+    "k1": "e1bde543e8a140b38d3f84ace746553e",
+    "k2": "b712c4ec307300043333a6899a402c10"
   },
   {
     "id": "stmify:swarnavahini",
@@ -1410,7 +1327,9 @@
     "name": "Swarnavahini",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/412-s-220x124.webp",
     "description": "Watch Swarnavahini live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:swarnawahinidrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:swarnawahinidrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:viva-cinema",
@@ -1419,7 +1338,9 @@
     "name": "Viva Cinema",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/411-s-220x124.webp",
     "description": "Watch Viva Cinema live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/viva_sd/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/viva_sd/default/index.mpd",
+    "k1": "07aa813bf2c147748046edd930f7736e",
+    "k2": "3bd6688b8b44e96201e753224adfc8fb"
   },
   {
     "id": "stmify:dazn-1",
@@ -1437,7 +1358,9 @@
     "name": "Filem Mantap",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/393-s-220x124.webp",
     "description": "Watch Filem Mantap live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_2/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_2/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:travel-taste",
@@ -1446,7 +1369,9 @@
     "name": "Travel &#038; Taste",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/391-s-220x124.webp",
     "description": "Watch Travel &#038; Taste live on Stmify.",
-    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_5/dash.mpd"
+    "stream_url": "https://b27a6dd8a86c3e4ba93fbae22aaaac64.pmqrop.channel-assembly.mediatailor.ap-southeast-1.amazonaws.com/v1/channel/FAST_5/dash.mpd",
+    "k1": "7481d3e3738c46768f138e208fee9076",
+    "k2": "e1d428c7f1ca82339a6cfa1d0757428e"
   },
   {
     "id": "stmify:unifi-sports",
@@ -1455,7 +1380,9 @@
     "name": "unifi Sports",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/389-s-220x124.webp",
     "description": "Watch unifi Sports live on Stmify.",
-    "stream_url": "https://unifi-live02.secureswiftcontent.com/UnifiHD/live11.mpd"
+    "stream_url": "https://unifi-live02.secureswiftcontent.com/UnifiHD/live11.mpd",
+    "k1": "b8090c8361cc5cc5c1aac0ec2710de10",
+    "k2": "ca0d18538845bae2cb4f4a168036f174"
   },
   {
     "id": "stmify:mbc-max",
@@ -1464,7 +1391,9 @@
     "name": "MBC Max",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/388-s-220x124.webp",
     "description": "Watch MBC Max live on Stmify.",
-    "stream_url": "https://shd-gcp-live.akamaized.net/live/bitmovin-mbc-max/b628d2bbaee0431a17859963edf2975f/index.mpd"
+    "stream_url": "https://shd-gcp-live.akamaized.net/live/bitmovin-mbc-max/b628d2bbaee0431a17859963edf2975f/index.mpd",
+    "k1": "e3ce77324a3d4fa2a913b26cc1976052",
+    "k2": "17774f82a3b9e33ea7a149596acbb20f"
   },
   {
     "id": "stmify:tap-tv",
@@ -1473,7 +1402,9 @@
     "name": "TAP TV",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/386-s-220x124.webp",
     "description": "Watch TAP TV live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_taptv_sd/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_taptv_sd/default/index.mpd",
+    "k1": "f6804251e90b4966889b7df94fdc621e",
+    "k2": "55c3c014f2bd12d6bd62349658f24566"
   },
   {
     "id": "stmify:tap-movies",
@@ -1482,7 +1413,9 @@
     "name": "TAP Movies",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/382-s-220x124.webp",
     "description": "Watch TAP Movies live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tapmovies_hd1/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-02-prod.akamaized.net/bpk-tv/cg_tapmovies_hd1/default/index.mpd",
+    "k1": "71cbdf02b595468bb77398222e1ade09",
+    "k2": "c3f2aa420b8908ab8761571c01899460"
   },
   {
     "id": "stmify:tapaction-flix",
@@ -1491,7 +1424,9 @@
     "name": "TapAction Flix",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/381-s-220x124.webp",
     "description": "Watch TapAction Flix live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_tapactionflix_hd1/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_tapactionflix_hd1/default/index.mpd",
+    "k1": "bee1066160c0424696d9bf99ca0645e3",
+    "k2": "f5b72bf3b89b9848de5616f37de040b7"
   },
   {
     "id": "stmify:calle-13",
@@ -1545,7 +1480,9 @@
     "name": "HBO2",
     "poster": "https://stmify.com/wp-content/uploads/2024/12/370-s-220x124.webp",
     "description": "Watch HBO2 live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/k0ixizzzeu/out/v1/058efc3c023b4424b4bff6c52cf7e81e/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/k0ixizzzeu/out/v1/058efc3c023b4424b4bff6c52cf7e81e/cenc.mpd",
+    "k1": "1c73219e929389385aba7d52fc5fecdf",
+    "k2": "04aac082576d853b80734f5d8d4ebbbc"
   },
   {
     "id": "stmify:usa-network",
@@ -1608,7 +1545,9 @@
     "name": "Channel Eye",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/345-s-220x124.webp",
     "description": "Watch Channel Eye live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:channeleyedrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:channeleyedrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:rupavahini",
@@ -1617,7 +1556,9 @@
     "name": "Rupavahini",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/344-s-220x124.webp",
     "description": "Watch Rupavahini live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:rupavahinidrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:rupavahinidrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:charana-tv",
@@ -1626,7 +1567,9 @@
     "name": "Charana TV",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/343-s-220x124.webp",
     "description": "Watch Charana TV live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:charanadrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:charanadrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:shakthi-tv",
@@ -1635,7 +1578,9 @@
     "name": "Shakthi TV",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/342-s-220x124.webp",
     "description": "Watch Shakthi TV live on Stmify.",
-    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:shakthitvdrm.smil/manifest.mpd"
+    "stream_url": "https://edge4-moblive.yuppcdn.net/drm/smil:shakthitvdrm.smil/manifest.mpd",
+    "k1": "9872e439f21f4a299cab249c6554daa3",
+    "k2": "0cdfcfe0d0f1fbe100554ce3ef4c4665"
   },
   {
     "id": "stmify:urdu-1",
@@ -1644,7 +1589,9 @@
     "name": "Urdu 1",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/341-s-220x124.webp",
     "description": "Watch Urdu 1 live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/Urdu_1/DASH/Urdu_1.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/Urdu_1/DASH/Urdu_1.mpd",
+    "k1": "cf56a165967418484e82689dd48432b2",
+    "k2": "bbea8c027a9008b08e50f532ea8f0b8d"
   },
   {
     "id": "stmify:minimax",
@@ -1653,7 +1600,9 @@
     "name": "Minimax",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/340-s-220x124.webp",
     "description": "Watch Minimax live on Stmify.",
-    "stream_url": "https://live2.shoq.com.pk/live/eds/Minimax/DASH/Minimax.mpd"
+    "stream_url": "https://live2.shoq.com.pk/live/eds/Minimax/DASH/Minimax.mpd",
+    "k1": "034c919e34f1de07c325a7b23ad451a0",
+    "k2": "cf88732938381b02d3fbfa09de6860ae"
   },
   {
     "id": "stmify:star-bharat",
@@ -1689,7 +1638,9 @@
     "name": "HBO Comedy",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/324-s-220x124.webp",
     "description": "Watch HBO Comedy live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/f6ns8qsqde/out/v1/0827e077a8224107a1e6137627cc8198/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/f6ns8qsqde/out/v1/0827e077a8224107a1e6137627cc8198/cenc.mpd",
+    "k1": "217624a3983b3593ca7d1f3b01042d4f",
+    "k2": "fecaa3486d9deef3f7f0e1a95b662cb7"
   },
   {
     "id": "stmify:star-movies",
@@ -1707,7 +1658,9 @@
     "name": "HBO Plus",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/317-s-220x124.webp",
     "description": "Watch HBO Plus live on Stmify.",
-    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-PLUS-HD/default.mpd"
+    "stream_url": "https://zap-live1-ott.izzigo.tv/5/out/u/dash/HBO-PLUS-HD/default.mpd",
+    "k1": "861ab989089891d84ad0da296954437c",
+    "k2": "3bdf94f9fc1888529f8d27d070d38566"
   },
   {
     "id": "stmify:supersport-laliga",
@@ -1752,7 +1705,9 @@
     "name": "8XM",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/294-s-220x124.webp",
     "description": "Watch 8XM live on Stmify.",
-    "stream_url": "https://live3.shoq.com.pk/live/eds/8_XM/DASH/8_XM.mpd"
+    "stream_url": "https://live3.shoq.com.pk/live/eds/8_XM/DASH/8_XM.mpd",
+    "k1": "7ebaeb181f20ef45689a3b306545792c",
+    "k2": "41ff280dc2d57eaf290bc588d821bb35"
   },
   {
     "id": "stmify:epic",
@@ -1761,7 +1716,9 @@
     "name": "Epic",
     "poster": "https://stmify.com/wp-content/uploads/2024/11/276-s-220x124.webp",
     "description": "Watch Epic live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Epictv2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Epictv2/default/manifest.mpd",
+    "k1": "f21752a2fa0a4fa3b49b973cf7a97a6d",
+    "k2": "49305a9be6a4470ab0725e8dc0115296"
   },
   {
     "id": "stmify:joomusic",
@@ -1851,7 +1808,9 @@
     "name": "EuroSport 2",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/251-s-220x124.webp",
     "description": "Watch EuroSport 2 live on Stmify.",
-    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/crenwml9jf/out/v1/09518f97387b4ea5a69279a1aa1daf0a/cenc.mpd"
+    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/crenwml9jf/out/v1/09518f97387b4ea5a69279a1aa1daf0a/cenc.mpd",
+    "k1": "7a98f8e748e2e14057e9f99ac8e3a025",
+    "k2": "a0d9aa1a419ced1f9f4c2804b92ee0f7"
   },
   {
     "id": "stmify:fashion-tv",
@@ -1887,7 +1846,9 @@
     "name": "NDTV",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/242-s-220x124.webp",
     "description": "Watch NDTV live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Ndtvindia2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Ndtvindia2/default/manifest.mpd",
+    "k1": "d78c01625c3f4ed98912609799298544",
+    "k2": "b91bb882f9624872ada6125006fe5c73"
   },
   {
     "id": "stmify:cinemax",
@@ -1896,7 +1857,9 @@
     "name": "Cinemax",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/241-s-220x124.webp",
     "description": "Watch Cinemax live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/rckhgp0mdp/out/v1/3952b81ea31d45b38372b128371301d2/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/rckhgp0mdp/out/v1/3952b81ea31d45b38372b128371301d2/cenc.mpd",
+    "k1": "3a5fc143bea61aa94eee0479933d5e72",
+    "k2": "8a365e8c3e2b8efdbcaab16d07c3b929"
   },
   {
     "id": "stmify:hbo-family",
@@ -1914,7 +1877,9 @@
     "name": "HBO Signature",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/238-s-220x124.webp",
     "description": "Watch HBO Signature live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/o6rq3swwr4/out/v1/6a362c145af241e5a6eb45e0729ce5e6/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/o6rq3swwr4/out/v1/6a362c145af241e5a6eb45e0729ce5e6/cenc.mpd",
+    "k1": "2742f4791f17231bdb933844dabfb5bc",
+    "k2": "3c49eb8a723248f87fb8c3722874557e"
   },
   {
     "id": "stmify:hbo-hits",
@@ -1932,7 +1897,9 @@
     "name": "HBO",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/236-s-220x124.webp",
     "description": "Watch HBO live on Stmify.",
-    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/ez2jwhkmke/out/v1/75466d737d52406e8a1c85dc70c9f183/cenc.mpd"
+    "stream_url": "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/ez2jwhkmke/out/v1/75466d737d52406e8a1c85dc70c9f183/cenc.mpd",
+    "k1": "6ab1caa245e2d8cc4e26e0e1b63fe661",
+    "k2": "22c42d7a1679f50ca4ad37b4c1ad97fe"
   },
   {
     "id": "stmify:sky-sports-premier-league",
@@ -2049,7 +2016,9 @@
     "name": "EuroSport 1",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/195-s-220x124.webp",
     "description": "Watch EuroSport 1 live on Stmify.",
-    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/at8teepvrn/out/v1/ab8d59a847f046c88f07a7f3d115d7fe/cenc.mpd"
+    "stream_url": "https://otte.live.fly.ww.aiv-cdn.net/lhr-nitro/live/clients/dash/enc/at8teepvrn/out/v1/ab8d59a847f046c88f07a7f3d115d7fe/cenc.mpd",
+    "k1": "15b830e0b73b0b8ef99786121997d5f5",
+    "k2": "51646d5e500648c6a4e319c7861e963f"
   },
   {
     "id": "stmify:sony-one-competencias",
@@ -2094,7 +2063,9 @@
     "name": "Animax",
     "poster": "https://stmify.com/wp-content/uploads/2024/10/178-s-220x124.webp",
     "description": "Watch Animax live on Stmify.",
-    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_animax_sd_new/default/index.mpd"
+    "stream_url": "https://qp-pldt-live-bpk-01-prod.akamaized.net/bpk-tv/cg_animax_sd_new/default/index.mpd",
+    "k1": "92032b0e41a543fb9830751273b8debd",
+    "k2": "03f8b65e2af785b10d6634735dbe6c11"
   },
   {
     "id": "stmify:dw",
@@ -2238,7 +2209,9 @@
     "name": "MBC 1",
     "poster": "https://stmify.com/wp-content/uploads/2024/09/128-s-220x124.webp",
     "description": "Watch MBC 1 live on Stmify.",
-    "stream_url": "https://neacdnpop3-edge02.aws.playco.com/live/eds/MBC_1HD/DASH/MBC_1HD.mpd"
+    "stream_url": "https://neacdnpop3-edge02.aws.playco.com/live/eds/MBC_1HD/DASH/MBC_1HD.mpd",
+    "k1": "14916d09434deadb728c72adfcbf0da3",
+    "k2": "0fc8151014beec32c7bd4abf797f8eb4"
   },
   {
     "id": "stmify:dabangg",
@@ -2445,7 +2418,9 @@
     "name": "Cartoon Network",
     "poster": "https://stmify.com/wp-content/uploads/2024/08/68-s-220x124.webp",
     "description": "Watch Cartoon Network live on Stmify.",
-    "stream_url": "https://a190aivottlinear-a.akamaihd.net/OTTB/iad-nitro/live/clients/dash/enc/ampfzrmpam/out/v1/e08f3866c80040f2bc494cb48ebc7bce/cenc.mpd"
+    "stream_url": "https://a190aivottlinear-a.akamaihd.net/OTTB/iad-nitro/live/clients/dash/enc/ampfzrmpam/out/v1/e08f3866c80040f2bc494cb48ebc7bce/cenc.mpd",
+    "k1": "7ef57f7f3e8cf0efe4f3d5772a7cbb35",
+    "k2": "0ac6d617095fbe0ca7f4c9ae72fa5f51"
   },
   {
     "id": "stmify:star-jalsha",
@@ -2481,7 +2456,9 @@
     "name": "Sangeet Bangla",
     "poster": "https://stmify.com/wp-content/uploads/2024/08/58-s-220x124.webp",
     "description": "Watch Sangeet Bangla live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Sangeetbangla2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Sangeetbangla2/default/manifest.mpd",
+    "k1": "55ef53e7216640ea862b98c3864000f7",
+    "k2": "11c2726ab75d4e6aaf54e0e09b5ae593"
   },
   {
     "id": "stmify:pogo",
@@ -2571,7 +2548,9 @@
     "name": "Music India",
     "poster": "https://stmify.com/wp-content/uploads/2024/08/27-s-220x124.webp",
     "description": "Watch Music India live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Musicindia2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Musicindia2/default/manifest.mpd",
+    "k1": "e874f3a7e5de42fca2b2a93b318fa52e",
+    "k2": "a77f240d277c47a5a0bc934072c4d7da"
   },
   {
     "id": "stmify:sony-one-comedy-tv",
@@ -2598,7 +2577,9 @@
     "name": "Discovery Kids",
     "poster": "https://stmify.com/wp-content/uploads/2024/08/21-s-220x124.webp",
     "description": "Watch Discovery Kids live on Stmify.",
-    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Discoverykids2/default/manifest.mpd"
+    "stream_url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Discoverykids2/default/manifest.mpd",
+    "k1": "601f58d4b7094d2baf78c85d1d9cb6c9",
+    "k2": "609e0cc03198455fa36fd2cc3e7f940d"
   },
   {
     "id": "stmify:somoy-tv",

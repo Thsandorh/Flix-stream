@@ -15,7 +15,7 @@ COMMON_HEADERS = {
     "Origin": STMIFY_BASE_URL
 }
 
-def resolve_stream_url(slug):
+def resolve_stream_info(slug):
     channel_url = f"{STMIFY_BASE_URL}/live-tv/{slug}/"
     try:
         # Step 1: Get Channel Page
@@ -65,7 +65,13 @@ def resolve_stream_url(slug):
 
         data = r_api.json()
         if stream_key in data:
-            return data[stream_key].get("url")
+            item = data[stream_key]
+            # Return dict with url and keys
+            return {
+                "url": item.get("url"),
+                "k1": item.get("k1"),
+                "k2": item.get("k2")
+            }
 
     except Exception as e:
         print(f"Error resolving {slug}: {e}")
@@ -137,8 +143,6 @@ def main():
         all_channels.extend(channels)
         print(f"Found {len(channels)} channels on page {page}. Total: {len(all_channels)}")
         page += 1
-
-        # Safety break to prevent infinite loops if 404 detection fails
         if page > 50:
             print("Max pages reached.")
             break
@@ -146,8 +150,8 @@ def main():
     print(f"Scraped {len(all_channels)} channels. Resolving streams...")
 
     # Resolve streams concurrently
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_channel = {executor.submit(resolve_stream_url, ch["slug"]): ch for ch in all_channels}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_channel = {executor.submit(resolve_stream_info, ch["slug"]): ch for ch in all_channels}
 
         count = 0
         total = len(all_channels)
@@ -155,21 +159,19 @@ def main():
         for future in concurrent.futures.as_completed(future_to_channel):
             channel = future_to_channel[future]
             try:
-                stream_url = future.result()
-                if stream_url:
-                    channel["stream_url"] = stream_url
+                info = future.result()
+                if info and info.get("url"):
+                    channel["stream_url"] = info["url"]
+                    if info.get("k1"):
+                        channel["k1"] = info["k1"]
+                    if info.get("k2"):
+                        channel["k2"] = info["k2"]
                     print(f"[{count}/{total}] Resolved {channel['slug']}")
                 else:
                     print(f"[{count}/{total}] Failed to resolve {channel['slug']}")
             except Exception as exc:
                 print(f"[{count}/{total}] Exception for {channel['slug']}: {exc}")
             count += 1
-
-    # Filter out channels without streams?
-    # The user said "channel, image, playable link".
-    # If no link, maybe keep it but it won't play.
-    # Or filter them to ensure quality.
-    # Let's keep them all but valid streams are populated.
 
     valid_channels = [c for c in all_channels if c.get("stream_url")]
     print(f"Resolved {len(valid_channels)} out of {len(all_channels)} channels.")
