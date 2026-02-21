@@ -29,6 +29,7 @@ from flix_stream.runtime_config import (
 )
 from flix_stream.stmify import (
     get_stmify_catalog,
+    get_stmify_hls_payload,
     get_stmify_license_payload,
     get_stmify_meta,
     get_stmify_proxy_mpd,
@@ -400,6 +401,15 @@ def stmify_proxy_mpd(slug):
     if status != 200:
         return payload, status
     return Response(payload, mimetype="application/dash+xml")
+
+
+@app.route("/stmify/hls/<slug>.m3u8")
+def stmify_hls_proxy(slug):
+    target_url = str(request.args.get("u") or "").strip() or None
+    payload, status, content_type = get_stmify_hls_payload(slug, target_url=target_url)
+    if status != 200:
+        return payload, status
+    return Response(payload, status=200, content_type=content_type)
 
 
 @app.route("/stmify/license/<slug>", methods=["GET", "POST"])

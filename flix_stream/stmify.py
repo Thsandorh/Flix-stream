@@ -6,6 +6,7 @@ import os
 import re
 import time
 from functools import lru_cache
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 from flask import has_request_context, request
@@ -45,6 +46,21 @@ def _is_mpd_stream_url(stream_url):
     if not token:
         return False
     return bool(re.search(r"\.(mpd|dash)(?:$|[?#])", token))
+
+
+def _is_m3u8_stream_url(stream_url):
+    token = str(stream_url or "").strip().lower()
+    if not token:
+        return False
+    return bool(re.search(r"\.m3u8(?:$|[?#])", token))
+
+
+def _needs_stmify_hls_proxy(stream_url):
+    try:
+        host = (urlparse(str(stream_url or "")).hostname or "").lower()
+    except Exception:
+        return False
+    return host == "cdn.stmify.com"
 
 
 def _is_valid_hex_key(value):
@@ -242,6 +258,15 @@ def _get_live_stream_info(slug):
     return resolved
 
 
+def _build_hls_proxy_url(slug, target_url=None):
+    encoded_target = quote(str(target_url or "").strip(), safe="")
+    query = f"?u={encoded_target}" if encoded_target else ""
+    if has_request_context():
+        base_url = request.url_root.rstrip("/")
+        return f"{base_url}/stmify/hls/{slug}.m3u8{query}"
+    return f"/stmify/hls/{slug}.m3u8{query}"
+
+
 def get_stmify_stream(stmify_id):
     canonical_id, channel = get_stmify_channel(stmify_id)
     if not canonical_id or not channel:
@@ -267,6 +292,18 @@ def get_stmify_stream(stmify_id):
                 "name": "Stmify (DRM)",
                 "title": f"Live: {channel_name}",
                 "url": proxy_url,
+                "behaviorHints": {
+                    "notWebReady": True,
+                },
+            }
+        ]
+
+    if _is_m3u8_stream_url(stream_url) and _needs_stmify_hls_proxy(stream_url):
+        return [
+            {
+                "name": "Stmify",
+                "title": f"Live: {channel_name}",
+                "url": _build_hls_proxy_url(slug),
                 "behaviorHints": {
                     "notWebReady": True,
                 },
@@ -375,6 +412,73 @@ def get_stmify_proxy_mpd(slug, license_url):
     mpd_content = _inject_base_url(mpd_content, base_url)
     mpd_content = _inject_clearkey_content_protection(mpd_content, license_url, default_kid=default_kid)
     return mpd_content, 200
+
+
+def _rewrite_m3u8_for_proxy(m3u8_content, source_url, slug):
+    source_url = str(source_url or "").strip()
+    lines = str(m3u8_content or "").splitlines()
+    rewritten = []
+
+    for raw_line in lines:
+        line = str(raw_line or "")
+        stripped = line.strip()
+        if not stripped:
+            rewritten.append(line)
+            continue
+
+        if stripped.startswith("#"):
+            if 'URI="' in line:
+                line = re.sub(
+                    r'URI="([^"]+)"',
+                    lambda match: f'URI="{_build_hls_proxy_url(slug, urljoin(source_url, match.group(1).strip()))}"',
+                    line,
+                )
+            rewritten.append(line)
+            continue
+
+        target = urljoin(source_url, stripped)
+        rewritten.append(_build_hls_proxy_url(slug, target))
+
+    return "\n".join(rewritten)
+
+
+def get_stmify_hls_payload(slug, target_url=None):
+    _, channel = get_stmify_channel(f"stmify:{slug}")
+    if not isinstance(channel, dict):
+        return "Channel not found", 404, "text/plain; charset=utf-8"
+
+    live_info = _get_live_stream_info(slug)
+    if target_url:
+        stream_url = str(target_url).strip()
+    else:
+        stream_url = str((live_info or {}).get("url") or channel.get("stream_url") or "").strip()
+    if not stream_url:
+        return "Channel stream not found", 404, "text/plain; charset=utf-8"
+
+    parsed_target = urlparse(stream_url)
+    if parsed_target.scheme not in ("http", "https"):
+        return "Invalid target URL", 400, "text/plain; charset=utf-8"
+    if has_request_context():
+        req_host = (request.host or "").split(":", 1)[0].lower()
+        if (parsed_target.hostname or "").lower() == req_host and parsed_target.path.startswith("/stmify/hls/"):
+            return "Invalid proxy target", 400, "text/plain; charset=utf-8"
+
+    try:
+        response = requests.get(stream_url, headers=COMMON_HEADERS, timeout=15)
+    except Exception as exc:
+        logger.warning("Stmify HLS proxy request failed for %s: %s", slug, exc)
+        return "Proxy error", 500, "text/plain; charset=utf-8"
+    if response.status_code != 200:
+        return f"Upstream error: {response.status_code}", 502, "text/plain; charset=utf-8"
+
+    upstream_type = str(response.headers.get("Content-Type") or "").lower()
+    is_playlist = _is_m3u8_stream_url(stream_url) or "mpegurl" in upstream_type
+    if not is_playlist:
+        content_type = str(response.headers.get("Content-Type") or "application/octet-stream")
+        return response.content, 200, content_type
+
+    rewritten = _rewrite_m3u8_for_proxy(response.text, stream_url, slug)
+    return rewritten, 200, "application/vnd.apple.mpegurl; charset=utf-8"
 
 
 def get_stmify_license_payload(slug):
