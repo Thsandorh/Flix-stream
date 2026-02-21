@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
@@ -80,41 +81,43 @@ class CinebyProvider:
             logger.error("Cineby provider unavailable: WASM module not loaded.")
             return []
 
-        providers = ["moviebox", "hdmovie", "myflixerzupcloud"]
+        # Sub-providers to query on the videasy API
+        sub_providers = ["moviebox", "hdmovie", "myflixerzupcloud", "vidsrc"]
         headers = COMMON_HEADERS.copy()
         headers.update({
             "Referer": "https://www.cineby.gd/",
             "Origin": "https://www.cineby.gd"
         })
 
-        streams = []
-        for provider in providers:
-            url = f"{CinebyProvider.BASE_URL}/{provider}/sources-with-title"
-            params = {
-                "tmdbId": str(tmdb_id),
-                "imdbId": str(imdb_id or ""),
-                "mediaType": media_type,
-                "seasonId": str(season),
-                "episodeId": str(episode),
-                "title": ""
-            }
+        params = {
+            "tmdbId": str(tmdb_id),
+            "imdbId": str(imdb_id or ""),
+            "mediaType": media_type,
+            "seasonId": str(season),
+            "episodeId": str(episode),
+            "title": ""
+        }
+
+        def _fetch_from_sub(sub):
+            url = f"{CinebyProvider.BASE_URL}/{sub}/sources-with-title"
             try:
-                r = requests.get(url, params=params, headers=headers, timeout=10)
+                r = requests.get(url, params=params, headers=headers, timeout=8)
                 if r.status_code != 200 or r.text.startswith("{") or len(r.text) < 100:
-                    continue
+                    return []
 
                 # Step 1: WASM Decrypt
                 b64_ciphertext = CinebyProvider._run_wasm_decrypt(engine, module, r.text, tmdb_id)
                 if not b64_ciphertext:
-                    continue
+                    return []
 
                 # Step 2: AES Decrypt (passphrase is empty string based on reverse engineering)
                 final_json_str = CinebyProvider.aes_decrypt(b64_ciphertext, "")
                 if final_json_str:
                     data = json.loads(final_json_str)
+                    results = []
                     for source in data.get("sources", []):
-                        streams.append({
-                            "name": f"Cineby - {provider}",
+                        results.append({
+                            "name": f"Cineby - {sub}",
                             "title": f"Cineby {source.get('quality', 'HD')}",
                             "url": source.get("url"),
                             "behaviorHints": {
@@ -122,10 +125,21 @@ class CinebyProvider:
                                 "proxyHeaders": {"request": headers}
                             }
                         })
+                    return results
             except Exception as e:
-                logger.error("Error fetching from Cineby provider %s: %s", provider, e)
+                logger.debug("Error fetching from Cineby sub-provider %s: %s", sub, e)
+            return []
 
-        return streams
+        all_results = []
+        with ThreadPoolExecutor(max_workers=len(sub_providers)) as executor:
+            future_to_sub = {executor.submit(_fetch_from_sub, sub): sub for sub in sub_providers}
+            for future in as_completed(future_to_sub):
+                try:
+                    all_results.extend(future.result())
+                except Exception as e:
+                    logger.error("Cineby future failed: %s", e)
+
+        return all_results
 
     @staticmethod
     def _run_wasm_decrypt(engine, module, hex_response, tmdb_id):
