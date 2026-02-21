@@ -284,6 +284,13 @@ def _build_dash_segment_proxy_base(slug):
     return f"/stmify/dash/{slug}/"
 
 
+def _build_stmify_proxy_mpd_url(slug):
+    if has_request_context():
+        base_url = request.url_root.rstrip("/")
+        return f"{base_url}/stmify/proxy/{slug}.mpd"
+    return f"/stmify/proxy/{slug}.mpd"
+
+
 def get_stmify_stream(stmify_id):
     canonical_id, channel = get_stmify_channel(stmify_id)
     if not canonical_id or not channel:
@@ -299,11 +306,7 @@ def get_stmify_stream(stmify_id):
     k2 = (live_info or {}).get("k2") or channel.get("k2")
 
     if _is_mpd_stream_url(stream_url) and _is_valid_hex_key(k1) and _is_valid_hex_key(k2):
-        if has_request_context():
-            base_url = request.url_root.rstrip("/")
-            proxy_url = f"{base_url}/stmify/proxy/{slug}.mpd"
-        else:
-            proxy_url = f"/stmify/proxy/{slug}.mpd"
+        proxy_url = _build_stmify_proxy_mpd_url(slug)
         return [
             {
                 "name": "Stmify (DRM)",
@@ -325,6 +328,26 @@ def get_stmify_stream(stmify_id):
                     "notWebReady": True,
                 },
             }
+        ]
+
+    if _is_m3u8_stream_url(stream_url):
+        return [
+            {
+                "name": "Stmify",
+                "title": f"Live: {channel_name}",
+                "url": stream_url,
+                "behaviorHints": {
+                    "notWebReady": True,
+                },
+            },
+            {
+                "name": "Stmify (HLS Proxy)",
+                "title": f"Live: {channel_name}",
+                "url": _build_hls_proxy_url(slug, stream_url),
+                "behaviorHints": {
+                    "notWebReady": True,
+                },
+            },
         ]
 
     return [
