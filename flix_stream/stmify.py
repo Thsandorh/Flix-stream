@@ -50,6 +50,16 @@ def _hex_to_b64url(value):
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
+def _hex_to_uuid(value):
+    token = str(value or "").strip().lower()
+    if len(token) != 32:
+        return None
+    return (
+        f"{token[0:8]}-{token[8:12]}-{token[12:16]}-"
+        f"{token[16:20]}-{token[20:32]}"
+    ).upper()
+
+
 def _load_channels_data():
     try:
         with open(JSON_PATH, "r", encoding="utf-8") as handle:
@@ -204,23 +214,42 @@ def _inject_base_url(mpd_content, base_url):
     return mpd_content
 
 
-def _inject_clearkey_content_protection(mpd_content, license_url):
-    if CLEARKEY_SCHEME_ID in mpd_content:
-        return mpd_content
+def _strip_non_clearkey_drm_blocks(mpd_content):
+    patterns = [
+        r'<ContentProtection[^>]*schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"[^>]*>.*?</ContentProtection>',
+        r'<ContentProtection[^>]*schemeIdUri="urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95"[^>]*>.*?</ContentProtection>',
+    ]
+    patched = mpd_content
+    for pattern in patterns:
+        patched = re.sub(pattern, "", patched, flags=re.DOTALL | re.IGNORECASE)
+    return patched
+
+
+def _inject_clearkey_content_protection(mpd_content, license_url, default_kid=None):
+    # Remove stale ClearKey blocks before reinject to avoid duplicates.
+    mpd_content = re.sub(
+        r'<ContentProtection[^>]*schemeIdUri="' + re.escape(CLEARKEY_SCHEME_ID) + r'"[^>]*>.*?</ContentProtection>',
+        "",
+        mpd_content,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    mpd_content = _strip_non_clearkey_drm_blocks(mpd_content)
+
+    kid_attr = ""
+    if default_kid:
+        kid_attr = f' xmlns:cenc="urn:mpeg:cenc:2013" cenc:default_KID="{default_kid}"'
     protection_xml = (
-        f'<ContentProtection schemeIdUri="{CLEARKEY_SCHEME_ID}" value="ClearKey">'
+        f'<ContentProtection schemeIdUri="{CLEARKEY_SCHEME_ID}" value="ClearKey"{kid_attr}>'
         f"<dashif:Laurl>{license_url}</dashif:Laurl>"
         "</ContentProtection>"
     )
-    patched, count = re.subn(
+    patched, _ = re.subn(
         r"(<AdaptationSet\b[^>]*>)",
         lambda match: f"{match.group(1)}{protection_xml}",
         mpd_content,
-        count=1,
+        count=0,
     )
-    if count:
-        return patched
-    return mpd_content
+    return patched
 
 
 def get_stmify_proxy_mpd(slug, license_url):
@@ -241,10 +270,11 @@ def get_stmify_proxy_mpd(slug, license_url):
         return f"Upstream error: {response.status_code}", 502
 
     mpd_content = str(response.text or "")
+    default_kid = _hex_to_uuid(channel.get("k1")) if _is_valid_hex_key(channel.get("k1")) else None
     base_url = stream_url.rsplit("/", 1)[0] + "/"
     mpd_content = _inject_dashif_namespace(mpd_content)
     mpd_content = _inject_base_url(mpd_content, base_url)
-    mpd_content = _inject_clearkey_content_protection(mpd_content, license_url)
+    mpd_content = _inject_clearkey_content_protection(mpd_content, license_url, default_kid=default_kid)
     return mpd_content, 200
 
 
