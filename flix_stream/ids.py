@@ -35,6 +35,8 @@ def provider_rank(stream_obj):
         return 1
     if name.startswith("vixsrc"):
         return 2
-    if name.startswith("aniways"):
+    if name.startswith("cineby"):
         return 3
-    return 4
+    if name.startswith("aniways"):
+        return 4
+    return 5

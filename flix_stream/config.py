@@ -11,13 +11,13 @@ MASTER_KEY = "b3f2a9d4c6e1f8a7b"
 
 MANIFEST = {
     "id": "org.flickystream.addon",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "name": "Flix-Streams",
     "description": "Stream movies, series, anime, and live TV with provider controls and Wyzie subtitle integration.",
     "logo": "/static/icon.png",
     "resources": ["stream"],
     "types": ["movie", "series"],
-    "idPrefixes": ["tt", "tmdb", "aniways", "kitsu"],
+    "idPrefixes": ["tt", "tmdb", "aniways", "kitsu", "famelack"],
     "catalogs": [],
     "behaviorHints": {
         "configurable": True,
