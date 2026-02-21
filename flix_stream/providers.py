@@ -16,6 +16,7 @@ from flix_stream.cache import ttl_cache
 from flix_stream.crypto import decrypt_autoembed_response, decrypt_link
 from flix_stream.subtitles import parse_subtitles
 from flix_stream.hdhub4u import fetch_hdhub4u_streams
+from flix_stream.moviehdzone import fetch_moviehdzone_streams_worker
 from flix_stream.tmdb import get_imdb_id_from_tmdb, get_tmdb_title
 
 
@@ -272,4 +273,16 @@ def fetch_hdhub4u_streams_worker(tmdb_id, content_type, season, episode):
         return fetch_hdhub4u_streams(tmdb_id, imdb_id, title, season, episode)
     except Exception as exc:
         logger.error("Error fetching HDHub4u streams for TMDB %s: %s", tmdb_id, exc)
+        return []
+
+@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
+def fetch_moviehdzone_streams_main(tmdb_id, content_type, season, episode):
+    """Worker for MovieHDZone."""
+    try:
+        title = get_tmdb_title(tmdb_id, content_type)
+        if not title:
+            return []
+        return fetch_moviehdzone_streams_worker(tmdb_id, title, season, episode)
+    except Exception as exc:
+        logger.error("Error fetching MovieHDZone streams: %s", exc)
         return []

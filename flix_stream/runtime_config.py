@@ -22,6 +22,7 @@ DEFAULT_ADDON_CONFIG = {
     "enable_aniways": True,
     "enable_stmify": True,
     "enable_hdhub4u": True,
+    "enable_moviehdzone": True,
     "enable_wyzie": True,
     "wyzie_languages": ["en"],
     "wyzie_formats": ["srt", "ass"],
@@ -40,6 +41,7 @@ def _default_config_copy():
         "enable_aniways": DEFAULT_ADDON_CONFIG["enable_aniways"],
         "enable_stmify": DEFAULT_ADDON_CONFIG["enable_stmify"],
         "enable_hdhub4u": DEFAULT_ADDON_CONFIG["enable_hdhub4u"],
+        "enable_moviehdzone": DEFAULT_ADDON_CONFIG["enable_moviehdzone"],
         "enable_wyzie": DEFAULT_ADDON_CONFIG["enable_wyzie"],
         "wyzie_languages": list(DEFAULT_ADDON_CONFIG["wyzie_languages"]),
         "wyzie_formats": list(DEFAULT_ADDON_CONFIG["wyzie_formats"]),
@@ -100,6 +102,7 @@ def normalize_addon_config(raw_config):
     cfg["enable_aniways"] = _to_bool(raw_config.get("enable_aniways"), cfg["enable_aniways"])
     cfg["enable_stmify"] = _to_bool(raw_config.get("enable_stmify"), cfg["enable_stmify"])
     cfg["enable_hdhub4u"] = _to_bool(raw_config.get("enable_hdhub4u"), cfg["enable_hdhub4u"])
+    cfg["enable_moviehdzone"] = _to_bool(raw_config.get("enable_moviehdzone"), cfg["enable_moviehdzone"])
     cfg["enable_wyzie"] = _to_bool(raw_config.get("enable_wyzie"), cfg["enable_wyzie"])
     cfg["wyzie_hearing_impaired"] = _to_bool(
         raw_config.get("wyzie_hearing_impaired"),
