@@ -18,18 +18,18 @@ Flix-Streams is a Flask-based Stremio addon that resolves IMDb IDs to TMDB IDs a
   - AutoEmbed (`test.autoembed.cc`)
   - VixSrc (`vixsrc.to`)
   - Aniways (`api.aniways.xyz`) with direct Aniways and Kitsu ID support
-  - Stmify Live TV (`stmify.com`) with dedicated catalog support
+  - Famelack Live TV (country-based catalogs powered by `famelack/famelack-channels`)
 - Merges subtitles from:
   - Upstream provider tracks
   - Wyzie Subs API (`sub.wyzie.ru`) with configurable language/source/format filters
 
 ## Current ID Behavior
 
-- Manifest `idPrefixes`: `["tt", "tmdb", "aniways", "kitsu"]` (+ `stmify` when enabled in config)
+- Manifest `idPrefixes`: `["tt", "tmdb", "aniways", "kitsu"]` (+ `famelack` when at least one Live TV country is selected)
 - Also supports `tmdb:<id>` IDs.
-- Stmify input: `stmify:<channel_slug>` (for example `stmify:tv1`)
-- Stmify catalog items include addon `meta` data so channel pages can render and play directly in Stremio.
-- Current static Live TV catalog size: `272` channels (`94` ClearKey DRM entries).
+- Famelack input: `famelack:<country_code>:<nanoid>` (for example `famelack:hu:abc123xyz`)
+- Live TV catalogs are created per selected country as `famelack-<country_code>` (for example `famelack-hu`).
+- Country options are served by `/api/famelack/countries`.
 - Movie input: `tt1234567`
 - Series input: `tt1234567:season:episode`
 - Aniways direct input: `aniways:<anime_id>:<episode>` (or `aniways:<anime_id>:<season>:<episode>`)
