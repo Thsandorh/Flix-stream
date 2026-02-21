@@ -59,13 +59,13 @@ def _extract_youtube_id(url):
     match = re.search(r'/embed/([a-zA-Z0-9_-]+)', url)
     if match:
         return match.group(1)
+    # Also handle regular watch URLs if present
+    match = re.search(r'v=([a-zA-Z0-9_-]+)', url)
+    if match:
+        return match.group(1)
     return None
 
 def _generate_poster(name, country_code):
-    # Use ui-avatars for a clean placeholder with initials, or dummyimage for text.
-    # dummyimage is better for full channel names but encoding spaces can be tricky.
-    # Let's try to use a service that supports text well.
-    # https://placehold.co/600x900/1a1a1a/FFF?text=Channel+Name
     encoded_name = quote(name)
     return f"https://placehold.co/600x900/1a1a1a/FFF.jpg?text={encoded_name}"
 
@@ -74,12 +74,17 @@ def get_famelack_catalog(code, skip=0):
     if not channels:
         return []
 
-    channels.sort(key=lambda x: x.get("name", ""))
+    # Filter out channels that have NO streams at all (IPTV or YouTube)
+    valid_channels = [
+        ch for ch in channels
+        if ch.get("iptv_urls") or ch.get("youtube_urls")
+    ]
+    valid_channels.sort(key=lambda x: x.get("name", ""))
 
     page_size = 100
     start = skip
     end = start + page_size
-    paged_channels = channels[start:end]
+    paged_channels = valid_channels[start:end]
 
     metas = []
     for ch in paged_channels:
@@ -153,7 +158,7 @@ def get_famelack_meta(famelack_id):
                 "title": "Live Stream",
                 "season": 1,
                 "episode": 1,
-                "released": "2024-01-01T00:00:00.000Z", # Dummy date
+                "released": "2024-01-01T00:00:00.000Z",
             }
         ],
         "behaviorHints": {
@@ -176,21 +181,38 @@ def get_famelack_streams(famelack_id):
         return []
 
     streams = []
-    iptv_urls = channel.get("iptv_urls", [])
 
+    # Add IPTV streams
+    iptv_urls = channel.get("iptv_urls", [])
     for i, url in enumerate(iptv_urls):
-        stream_name = f"Stream {i+1}"
-        # If there's only one stream, just call it "Live" or the channel name
-        if len(iptv_urls) == 1:
+        stream_name = f"IPTV {i+1}"
+        if len(iptv_urls) == 1 and not channel.get("youtube_urls"):
             stream_name = "Live TV"
 
         streams.append({
-            "name": channel.get("name"), # Provider name (left side)
-            "title": stream_name,        # Description (right side)
+            "name": channel.get("name"),
+            "title": stream_name,
             "url": url,
             "behaviorHints": {
                 "notWebReady": True
             }
         })
+
+    # Add YouTube streams
+    youtube_urls = channel.get("youtube_urls", [])
+    for i, url in enumerate(youtube_urls):
+        yt_id = _extract_youtube_id(url)
+        if yt_id:
+            streams.append({
+                "name": "YouTube",
+                "title": f"Stream {i+1}",
+                "ytId": yt_id
+            })
+        else:
+            streams.append({
+                "name": "YouTube (Link)",
+                "title": f"Stream {i+1}",
+                "url": url
+            })
 
     return streams
