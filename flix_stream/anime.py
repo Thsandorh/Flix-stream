@@ -34,6 +34,8 @@ def extract_aniways_proxy_hls_details(proxy_hls):
     """
     Aniways proxyHls format:
     /proxy/<provider>/<base64_json_headers>/<base64_target_url>
+
+    Robust version handles slashes in base64 strings by iteratively attempting to decode headers.
     """
     raw = str(proxy_hls or "").strip()
     if not raw:
@@ -45,42 +47,55 @@ def extract_aniways_proxy_hls_details(proxy_hls):
         return None, {}
 
     suffix = raw[idx + len(marker) :]
-    parts = suffix.split("/", 2)
+    parts = suffix.split("/")
     if len(parts) < 3:
         return None, {}
 
-    headers_token = parts[1].strip().split("?", 1)[0]
-    target_token = parts[2].strip().split("?", 1)[0]
+    # parts[0] is provider
+    remaining = parts[1:]
 
     parsed_headers = {}
-    decoded_headers = decode_b64_loose(headers_token)
-    if decoded_headers:
-        try:
-            header_payload = json.loads(decoded_headers.decode("utf-8"))
-            if isinstance(header_payload, dict):
-                name_map = {
-                    "referer": "Referer",
-                    "origin": "Origin",
-                    "user-agent": "User-Agent",
-                }
-                for key, value in header_payload.items():
-                    h_key = str(key or "").strip()
-                    h_val = str(value or "").strip()
-                    if not h_key or not h_val:
-                        continue
-                    parsed_headers[name_map.get(h_key.lower(), h_key)] = h_val
-        except Exception:
-            pass
-
     parsed_url = None
-    decoded_url = decode_b64_loose(target_token)
-    if decoded_url:
-        try:
-            candidate = decoded_url.decode("utf-8").strip()
-            if candidate.startswith(("http://", "https://")):
-                parsed_url = candidate
-        except Exception:
-            pass
+
+    # Iterate possible split points for headers vs target
+    for k in range(1, len(remaining) + 1):
+        # Candidate headers
+        h_token = "/".join(remaining[:k]).split("?", 1)[0]
+        decoded_headers = decode_b64_loose(h_token)
+        if decoded_headers:
+            try:
+                header_payload = json.loads(decoded_headers.decode("utf-8"))
+                if isinstance(header_payload, dict):
+                    # Found valid JSON headers!
+                    name_map = {
+                        "referer": "Referer",
+                        "origin": "Origin",
+                        "user-agent": "User-Agent",
+                    }
+                    for key, value in header_payload.items():
+                        h_key = str(key or "").strip()
+                        h_val = str(value or "").strip()
+                        if not h_key or not h_val:
+                            continue
+                        parsed_headers[name_map.get(h_key.lower(), h_key)] = h_val
+
+                    # Once headers are found, assume the rest is target
+                    if k < len(remaining):
+                        t_token = "/".join(remaining[k:]).split("?", 1)[0]
+                        decoded_url = decode_b64_loose(t_token)
+                        if decoded_url:
+                            try:
+                                candidate = decoded_url.decode("utf-8").strip()
+                                if candidate.startswith(("http://", "https://")):
+                                    parsed_url = candidate
+                            except Exception:
+                                pass
+
+                    # Return immediately if headers found (even if URL decode fails,
+                    # we trust the header match strongly).
+                    return parsed_url, parsed_headers
+            except Exception:
+                pass
 
     return parsed_url, parsed_headers
 
@@ -236,7 +251,15 @@ def fetch_aniways_streams(anime_id, episode_num):
                 # Keep one URL per server entry to avoid cluttered duplicate rows in clients.
                 unique_urls = unique_urls[:1]
 
-                request_headers = dict(ANIWAYS_COMMON_HEADERS)
+                # Case-insensitive header merging to prevent duplicates (e.g. referer vs Referer).
+                # Priority: proxy_hls_headers > stream_data headers > ANIWAYS_COMMON_HEADERS
+                headers_map = {}
+
+                # 1. Common
+                for k, v in ANIWAYS_COMMON_HEADERS.items():
+                    headers_map[k.lower()] = (k, v)
+
+                # 2. Stream Data
                 extra_headers = stream_data.get("headers")
                 if isinstance(extra_headers, dict):
                     for h_key, h_val in extra_headers.items():
@@ -244,9 +267,23 @@ def fetch_aniways_streams(anime_id, episode_num):
                         value = str(h_val or "").strip()
                         if not key or not value:
                             continue
-                        request_headers[key] = value
+                        # Use title case map for known headers if possible, otherwise keep original casing
+                        final_key = key
+                        if key.lower() == "referer":
+                            final_key = "Referer"
+                        elif key.lower() == "origin":
+                            final_key = "Origin"
+                        elif key.lower() == "user-agent":
+                            final_key = "User-Agent"
+
+                        headers_map[key.lower()] = (final_key, value)
+
+                # 3. Proxy HLS (already Title-Cased by extraction)
                 if proxy_hls_headers:
-                    request_headers.update(proxy_hls_headers)
+                    for k, v in proxy_hls_headers.items():
+                        headers_map[k.lower()] = (k, v)
+
+                request_headers = {k_v[0]: k_v[1] for k_v in headers_map.values()}
 
                 subtitles = []
                 for track in stream_data.get("tracks") or []:
