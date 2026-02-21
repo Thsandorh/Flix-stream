@@ -123,7 +123,7 @@ def get_famelack_catalog(code, skip=0):
             "type": "series",
             "name": name,
             "poster": poster,
-            "description": f"Source: Famelack | Country: {country_code.upper()}",
+            "description": f"Country: {country_code.upper()}", # Removed Source: Famelack prefix
             "background": poster,
             "behaviorHints": {
                 "defaultVideoId": f"famelack:{country_code}:{nanoid}"
@@ -158,7 +158,7 @@ def get_famelack_meta(famelack_id):
         "name": name,
         "poster": poster,
         "background": poster,
-        "description": f"Watch {name} live.\n\nSource: Famelack\nCountry: {country_code.upper()}",
+        "description": f"Watch {name} live.\n\nCountry: {country_code.upper()}", # Removed Source: Famelack
         "genres": ["Live TV", country_code.upper()],
         "country": country_code.upper(),
         "videos": [
