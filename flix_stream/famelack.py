@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from functools import lru_cache
+from urllib.parse import quote
 
 import requests
 
@@ -21,14 +22,12 @@ def get_famelack_countries():
             logger.error(f"Failed to fetch metadata: {response.status_code}")
             return {}
 
-        # Decompress if needed (GitHub raw usually serves gzip as application/octet-stream but requests might not auto-decompress unless content-encoding header is set correctly, which GitHub might not do for raw files)
         try:
             content = gzip.decompress(response.content)
         except gzip.BadGzipFile:
             content = response.content
 
         data = json.loads(content)
-        # Filter only countries that have channels
         return {k: v for k, v in data.items() if v.get("hasChannels")}
     except Exception as e:
         logger.error(f"Error fetching famelack countries: {e}")
@@ -41,7 +40,6 @@ def fetch_famelack_country(code):
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
-            # Try upper case just in case
             response = requests.get(f"{FAMELACK_BASE_URL}/countries/{code.upper()}.json", timeout=10)
             if response.status_code != 200:
                 logger.error(f"Failed to fetch country {code}: {response.status_code}")
@@ -58,22 +56,27 @@ def fetch_famelack_country(code):
         return []
 
 def _extract_youtube_id(url):
-    # simple extraction for embed links like https://www.youtube-nocookie.com/embed/VIDEO_ID
     match = re.search(r'/embed/([a-zA-Z0-9_-]+)', url)
     if match:
         return match.group(1)
     return None
+
+def _generate_poster(name, country_code):
+    # Use ui-avatars for a clean placeholder with initials, or dummyimage for text.
+    # dummyimage is better for full channel names but encoding spaces can be tricky.
+    # Let's try to use a service that supports text well.
+    # https://placehold.co/600x900/1a1a1a/FFF?text=Channel+Name
+    encoded_name = quote(name)
+    return f"https://placehold.co/600x900/1a1a1a/FFF.jpg?text={encoded_name}"
 
 def get_famelack_catalog(code, skip=0):
     channels = fetch_famelack_country(code)
     if not channels:
         return []
 
-    # Sort by name
     channels.sort(key=lambda x: x.get("name", ""))
 
-    # Pagination
-    page_size = 100 # Show more channels per page
+    page_size = 100
     start = skip
     end = start + page_size
     paged_channels = channels[start:end]
@@ -84,7 +87,6 @@ def get_famelack_catalog(code, skip=0):
         name = ch.get("name")
         country_code = ch.get("country", "").lower()
 
-        # Determine poster
         poster = None
         youtube_urls = ch.get("youtube_urls", [])
         if youtube_urls:
@@ -92,22 +94,24 @@ def get_famelack_catalog(code, skip=0):
             if yt_id:
                 poster = f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
 
-        if not poster and country_code:
-             poster = f"https://flagcdn.com/w320/{country_code}.png"
+        if not poster:
+             poster = _generate_poster(name, country_code)
 
         metas.append({
             "id": f"famelack:{country_code}:{nanoid}",
-            "type": "series", # or "tv"
+            "type": "series",
             "name": name,
             "poster": poster,
             "description": f"Watch {name} from {country_code.upper()}",
-            "background": poster
+            "background": poster,
+            "behaviorHints": {
+                "defaultVideoId": f"famelack:{country_code}:{nanoid}"
+            }
         })
 
     return metas
 
 def get_famelack_meta(famelack_id):
-    # id format: famelack:code:nanoid
     parts = famelack_id.split(":")
     if len(parts) != 3:
         return None
@@ -131,8 +135,8 @@ def get_famelack_meta(famelack_id):
         if yt_id:
             poster = f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
 
-    if not poster and country_code:
-            poster = f"https://flagcdn.com/w320/{country_code}.png"
+    if not poster:
+            poster = _generate_poster(name, country_code)
 
     return {
         "id": famelack_id,
@@ -149,8 +153,12 @@ def get_famelack_meta(famelack_id):
                 "title": "Live Stream",
                 "season": 1,
                 "episode": 1,
+                "released": "2024-01-01T00:00:00.000Z", # Dummy date
             }
-        ]
+        ],
+        "behaviorHints": {
+            "defaultVideoId": famelack_id
+        }
     }
 
 def get_famelack_streams(famelack_id):
@@ -171,9 +179,14 @@ def get_famelack_streams(famelack_id):
     iptv_urls = channel.get("iptv_urls", [])
 
     for i, url in enumerate(iptv_urls):
+        stream_name = f"Stream {i+1}"
+        # If there's only one stream, just call it "Live" or the channel name
+        if len(iptv_urls) == 1:
+            stream_name = "Live TV"
+
         streams.append({
-            "name": f"Stream {i+1}",
-            "title": channel.get("name"),
+            "name": channel.get("name"), # Provider name (left side)
+            "title": stream_name,        # Description (right side)
             "url": url,
             "behaviorHints": {
                 "notWebReady": True
