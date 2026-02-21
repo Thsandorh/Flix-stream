@@ -192,3 +192,55 @@ def search_tmdb_id_by_title(title, content_type_hint=None, year=None):
             logger.error("TMDB title search failed for '%s' (%s): %s", raw_title, media_type, exc)
 
     return None, None
+
+
+@lru_cache(maxsize=2048)
+def get_imdb_id_from_tmdb(tmdb_id, content_type=None):
+    """Resolve IMDb ID from TMDB ID."""
+    if not tmdb_id:
+        return None
+
+    kind = (content_type or "").lower()
+    # If type is "series", TMDB uses "tv"
+    media_type = "tv" if kind in ("series", "tv") else "movie"
+
+    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}/external_ids"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        imdb_id = data.get("imdb_id")
+        if imdb_id and str(imdb_id).startswith("tt"):
+            return imdb_id
+    except Exception as exc:
+        logger.error("TMDB external IDs lookup failed for %s (%s): %s", tmdb_id, media_type, exc)
+
+    return None
+
+
+@lru_cache(maxsize=2048)
+def get_tmdb_title(tmdb_id, content_type=None):
+    """Resolve title from TMDB ID."""
+    if not tmdb_id:
+        return None
+
+    kind = (content_type or "").lower()
+    media_type = "tv" if kind in ("series", "tv") else "movie"
+
+    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if media_type == "movie":
+            return data.get("title") or data.get("original_title")
+        else:
+            return data.get("name") or data.get("original_name")
+    except Exception as exc:
+        logger.error("TMDB title lookup failed for %s (%s): %s", tmdb_id, media_type, exc)
+
+    return None
