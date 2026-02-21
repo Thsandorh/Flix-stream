@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from functools import lru_cache
 
 import requests
@@ -13,6 +14,7 @@ from flask import has_request_context, request
 logger = logging.getLogger(__name__)
 
 STMIFY_BASE_URL = "https://stmify.com"
+CDN_BASE_URL = "https://cdn.stmify.com"
 JSON_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "static",
@@ -20,12 +22,14 @@ JSON_PATH = os.path.join(
 )
 CLEARKEY_SCHEME_ID = "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b"
 DASHIF_NAMESPACE = "https://dashif.org/guidelines/clear-key"
+LIVE_RESOLVE_TTL_SECONDS = 300
 
 COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Referer": f"{STMIFY_BASE_URL}/",
     "Origin": STMIFY_BASE_URL,
 }
+_LIVE_STREAM_CACHE = {}
 
 
 def _normalize_int(value, default):
@@ -34,6 +38,13 @@ def _normalize_int(value, default):
     except Exception:
         return default
     return parsed
+
+
+def _is_mpd_stream_url(stream_url):
+    token = str(stream_url or "").strip().lower()
+    if not token:
+        return False
+    return bool(re.search(r"\.(mpd|dash)(?:$|[?#])", token))
 
 
 def _is_valid_hex_key(value):
@@ -143,6 +154,94 @@ def get_stmify_channel(stmify_id):
     return canonical_id, channel
 
 
+def _resolve_stream_info_from_stmify(slug):
+    channel_url = f"{STMIFY_BASE_URL}/live-tv/{slug}/"
+    try:
+        channel_response = requests.get(channel_url, headers=COMMON_HEADERS, timeout=12)
+    except Exception as exc:
+        logger.debug("Stmify channel page request failed for %s: %s", slug, exc)
+        return None
+    if channel_response.status_code != 200:
+        return None
+
+    iframe_match = re.search(
+        r'src=["\']((?:https:)?//cdn\.stmify\.com/embed[^"\']+)["\']',
+        str(channel_response.text or ""),
+        flags=re.IGNORECASE,
+    )
+    if not iframe_match:
+        return None
+
+    iframe_src = iframe_match.group(1)
+    if iframe_src.startswith("//"):
+        iframe_src = f"https:{iframe_src}"
+
+    embed_headers = dict(COMMON_HEADERS)
+    embed_headers["Referer"] = channel_url
+    try:
+        embed_response = requests.get(iframe_src, headers=embed_headers, timeout=12)
+    except Exception as exc:
+        logger.debug("Stmify embed request failed for %s: %s", slug, exc)
+        return None
+    if embed_response.status_code != 200:
+        return None
+
+    embed_payload = str(embed_response.text or "")
+    stream_match = re.search(r'const\s+streamId\s*=\s*["\']([^"\']+)["\']', embed_payload)
+    country_match = re.search(r'const\s+country\s*=\s*["\']([^"\']+)["\']', embed_payload)
+    if not stream_match or not country_match:
+        return None
+
+    stream_key = stream_match.group(1).strip()
+    country = country_match.group(1).strip()
+    if not stream_key or not country:
+        return None
+
+    api_url = f"{CDN_BASE_URL}/embed-free/fetch_streams.php?country={country}"
+    api_headers = dict(COMMON_HEADERS)
+    api_headers["Referer"] = iframe_src
+    api_headers["X-Requested-With"] = "XMLHttpRequest"
+    try:
+        api_response = requests.get(api_url, headers=api_headers, timeout=12)
+    except Exception as exc:
+        logger.debug("Stmify fetch_streams request failed for %s: %s", slug, exc)
+        return None
+    if api_response.status_code != 200:
+        return None
+
+    try:
+        api_data = api_response.json()
+    except Exception:
+        return None
+    if not isinstance(api_data, dict):
+        return None
+
+    channel_entry = api_data.get(stream_key)
+    if not isinstance(channel_entry, dict):
+        return None
+
+    stream_url = str(channel_entry.get("url") or "").strip()
+    if not stream_url:
+        return None
+
+    return {
+        "url": stream_url,
+        "k1": str(channel_entry.get("k1") or "").strip(),
+        "k2": str(channel_entry.get("k2") or "").strip(),
+    }
+
+
+def _get_live_stream_info(slug):
+    now = time.time()
+    cached = _LIVE_STREAM_CACHE.get(slug)
+    if isinstance(cached, dict) and now - float(cached.get("ts") or 0) < LIVE_RESOLVE_TTL_SECONDS:
+        return cached.get("data")
+
+    resolved = _resolve_stream_info_from_stmify(slug)
+    _LIVE_STREAM_CACHE[slug] = {"ts": now, "data": resolved}
+    return resolved
+
+
 def get_stmify_stream(stmify_id):
     canonical_id, channel = get_stmify_channel(stmify_id)
     if not canonical_id or not channel:
@@ -150,11 +249,14 @@ def get_stmify_stream(stmify_id):
 
     slug = canonical_id.split(":", 1)[1]
     channel_name = str(channel.get("name") or slug.replace("-", " ").title()).strip()
-    stream_url = channel.get("stream_url")
+    live_info = _get_live_stream_info(slug)
+    stream_url = str((live_info or {}).get("url") or channel.get("stream_url") or "").strip()
     if not stream_url:
         return []
+    k1 = (live_info or {}).get("k1") or channel.get("k1")
+    k2 = (live_info or {}).get("k2") or channel.get("k2")
 
-    if _is_valid_hex_key(channel.get("k1")) and _is_valid_hex_key(channel.get("k2")):
+    if _is_mpd_stream_url(stream_url) and _is_valid_hex_key(k1) and _is_valid_hex_key(k2):
         if has_request_context():
             base_url = request.url_root.rstrip("/")
             proxy_url = f"{base_url}/stmify/proxy/{slug}.mpd"
@@ -178,13 +280,6 @@ def get_stmify_stream(stmify_id):
             "url": stream_url,
             "behaviorHints": {
                 "notWebReady": True,
-                "proxyHeaders": {
-                    "request": {
-                        "User-Agent": COMMON_HEADERS["User-Agent"],
-                        "Referer": COMMON_HEADERS["Referer"],
-                        "Origin": COMMON_HEADERS["Origin"],
-                    }
-                },
             },
         }
     ]
@@ -257,9 +352,12 @@ def get_stmify_proxy_mpd(slug, license_url):
     if not isinstance(channel, dict):
         return "Channel not found", 404
 
-    stream_url = str(channel.get("stream_url") or "").strip()
+    live_info = _get_live_stream_info(slug)
+    stream_url = str((live_info or {}).get("url") or channel.get("stream_url") or "").strip()
     if not stream_url:
         return "Channel stream not found", 404
+    if not _is_mpd_stream_url(stream_url):
+        return "Channel stream is not DASH MPD", 400
 
     try:
         response = requests.get(stream_url, headers=COMMON_HEADERS, timeout=12)
@@ -270,7 +368,8 @@ def get_stmify_proxy_mpd(slug, license_url):
         return f"Upstream error: {response.status_code}", 502
 
     mpd_content = str(response.text or "")
-    default_kid = _hex_to_uuid(channel.get("k1")) if _is_valid_hex_key(channel.get("k1")) else None
+    key_source = (live_info or {}).get("k1") or channel.get("k1")
+    default_kid = _hex_to_uuid(key_source) if _is_valid_hex_key(key_source) else None
     base_url = stream_url.rsplit("/", 1)[0] + "/"
     mpd_content = _inject_dashif_namespace(mpd_content)
     mpd_content = _inject_base_url(mpd_content, base_url)
@@ -283,8 +382,9 @@ def get_stmify_license_payload(slug):
     if not isinstance(channel, dict):
         return None
 
-    k1 = channel.get("k1")
-    k2 = channel.get("k2")
+    live_info = _get_live_stream_info(slug)
+    k1 = (live_info or {}).get("k1") or channel.get("k1")
+    k2 = (live_info or {}).get("k2") or channel.get("k2")
     if not (_is_valid_hex_key(k1) and _is_valid_hex_key(k2)):
         return None
 
