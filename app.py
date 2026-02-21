@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from flix_stream.anime import (
     fetch_aniways_streams,
@@ -27,7 +27,14 @@ from flix_stream.runtime_config import (
     encode_addon_config,
     normalize_addon_config,
 )
-from flix_stream.stmify import get_stmify_catalog, get_stmify_meta, get_stmify_stream, load_channels
+from flix_stream.stmify import (
+    get_stmify_catalog,
+    get_stmify_license_payload,
+    get_stmify_meta,
+    get_stmify_proxy_mpd,
+    get_stmify_stream,
+    load_channels,
+)
 from flix_stream.tmdb import get_series_context_from_imdb, get_tmdb_id, search_tmdb_id_by_title
 from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
@@ -384,6 +391,23 @@ def meta(type, id):
 def meta_with_config(config_token, type, id):
     addon_config = decode_addon_config_token(config_token)
     return _meta_response(type, id, addon_config)
+
+
+@app.route("/stmify/proxy/<slug>.mpd")
+def stmify_proxy_mpd(slug):
+    license_url = f"{request.url_root.rstrip('/')}/stmify/license/{slug}"
+    payload, status = get_stmify_proxy_mpd(slug, license_url)
+    if status != 200:
+        return payload, status
+    return Response(payload, mimetype="application/dash+xml")
+
+
+@app.route("/stmify/license/<slug>", methods=["GET", "POST"])
+def stmify_license(slug):
+    payload = get_stmify_license_payload(slug)
+    if not isinstance(payload, dict):
+        return "Key not found", 404
+    return jsonify(payload)
 
 
 def _stream_response(content_type, raw_id, addon_config):

@@ -1,7 +1,13 @@
+import base64
+import binascii
 import json
 import logging
 import os
+import re
 from functools import lru_cache
+
+import requests
+from flask import has_request_context, request
 
 
 logger = logging.getLogger(__name__)
@@ -12,6 +18,8 @@ JSON_PATH = os.path.join(
     "static",
     "stmify_channels.json",
 )
+CLEARKEY_SCHEME_ID = "urn:uuid:1077efec-c0b2-4d02-ace3-3c1e52e2fb4b"
+DASHIF_NAMESPACE = "https://dashif.org/guidelines/clear-key"
 
 COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -26,6 +34,20 @@ def _normalize_int(value, default):
     except Exception:
         return default
     return parsed
+
+
+def _is_valid_hex_key(value):
+    token = str(value or "").strip().lower()
+    if not token:
+        return False
+    if len(token) != 32:
+        return False
+    return bool(re.fullmatch(r"[0-9a-f]+", token))
+
+
+def _hex_to_b64url(value):
+    raw = binascii.unhexlify(str(value).strip())
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
 def _load_channels_data():
@@ -116,10 +138,28 @@ def get_stmify_stream(stmify_id):
     if not canonical_id or not channel:
         return []
 
-    channel_name = str(channel.get("name") or canonical_id.split(":", 1)[1].replace("-", " ").title()).strip()
+    slug = canonical_id.split(":", 1)[1]
+    channel_name = str(channel.get("name") or slug.replace("-", " ").title()).strip()
     stream_url = channel.get("stream_url")
     if not stream_url:
         return []
+
+    if _is_valid_hex_key(channel.get("k1")) and _is_valid_hex_key(channel.get("k2")):
+        if has_request_context():
+            base_url = request.url_root.rstrip("/")
+            proxy_url = f"{base_url}/stmify/proxy/{slug}.mpd"
+        else:
+            proxy_url = f"/stmify/proxy/{slug}.mpd"
+        return [
+            {
+                "name": "Stmify (DRM)",
+                "title": f"Live: {channel_name}",
+                "url": proxy_url,
+                "behaviorHints": {
+                    "notWebReady": True,
+                },
+            }
+        ]
 
     return [
         {
@@ -138,6 +178,96 @@ def get_stmify_stream(stmify_id):
             },
         }
     ]
+
+
+def _inject_dashif_namespace(mpd_content):
+    if "xmlns:dashif=" in mpd_content:
+        return mpd_content
+    if "<MPD " in mpd_content:
+        return mpd_content.replace("<MPD ", f'<MPD xmlns:dashif="{DASHIF_NAMESPACE}" ', 1)
+    if "<MPD>" in mpd_content:
+        return mpd_content.replace("<MPD>", f'<MPD xmlns:dashif="{DASHIF_NAMESPACE}">', 1)
+    return mpd_content
+
+
+def _inject_base_url(mpd_content, base_url):
+    if "<BaseURL>" in mpd_content:
+        return mpd_content
+    patched, count = re.subn(
+        r"(<Period\b[^>]*>)",
+        lambda match: f"{match.group(1)}<BaseURL>{base_url}</BaseURL>",
+        mpd_content,
+        count=1,
+    )
+    if count:
+        return patched
+    return mpd_content
+
+
+def _inject_clearkey_content_protection(mpd_content, license_url):
+    if CLEARKEY_SCHEME_ID in mpd_content:
+        return mpd_content
+    protection_xml = (
+        f'<ContentProtection schemeIdUri="{CLEARKEY_SCHEME_ID}" value="ClearKey">'
+        f"<dashif:Laurl>{license_url}</dashif:Laurl>"
+        "</ContentProtection>"
+    )
+    patched, count = re.subn(
+        r"(<AdaptationSet\b[^>]*>)",
+        lambda match: f"{match.group(1)}{protection_xml}",
+        mpd_content,
+        count=1,
+    )
+    if count:
+        return patched
+    return mpd_content
+
+
+def get_stmify_proxy_mpd(slug, license_url):
+    _, channel = get_stmify_channel(f"stmify:{slug}")
+    if not isinstance(channel, dict):
+        return "Channel not found", 404
+
+    stream_url = str(channel.get("stream_url") or "").strip()
+    if not stream_url:
+        return "Channel stream not found", 404
+
+    try:
+        response = requests.get(stream_url, headers=COMMON_HEADERS, timeout=12)
+    except Exception as exc:
+        logger.warning("Stmify proxy request failed for %s: %s", slug, exc)
+        return "Proxy error", 500
+    if response.status_code != 200:
+        return f"Upstream error: {response.status_code}", 502
+
+    mpd_content = str(response.text or "")
+    base_url = stream_url.rsplit("/", 1)[0] + "/"
+    mpd_content = _inject_dashif_namespace(mpd_content)
+    mpd_content = _inject_base_url(mpd_content, base_url)
+    mpd_content = _inject_clearkey_content_protection(mpd_content, license_url)
+    return mpd_content, 200
+
+
+def get_stmify_license_payload(slug):
+    _, channel = get_stmify_channel(f"stmify:{slug}")
+    if not isinstance(channel, dict):
+        return None
+
+    k1 = channel.get("k1")
+    k2 = channel.get("k2")
+    if not (_is_valid_hex_key(k1) and _is_valid_hex_key(k2)):
+        return None
+
+    return {
+        "keys": [
+            {
+                "kty": "oct",
+                "kid": _hex_to_b64url(k1),
+                "k": _hex_to_b64url(k2),
+            }
+        ],
+        "type": "temporary",
+    }
 
 
 def get_stmify_meta(stmify_id):
