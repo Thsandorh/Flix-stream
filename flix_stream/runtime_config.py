@@ -19,6 +19,7 @@ DEFAULT_ADDON_CONFIG = {
     "enable_vidzee": True,
     "enable_autoembed": True,
     "enable_vixsrc": True,
+    "enable_superembed": True,
     "enable_aniways": True,
     "famelack_countries": [], # List of country codes
     "enable_wyzie": True,
@@ -36,6 +37,7 @@ def _default_config_copy():
         "enable_vidzee": DEFAULT_ADDON_CONFIG["enable_vidzee"],
         "enable_autoembed": DEFAULT_ADDON_CONFIG["enable_autoembed"],
         "enable_vixsrc": DEFAULT_ADDON_CONFIG["enable_vixsrc"],
+        "enable_superembed": DEFAULT_ADDON_CONFIG["enable_superembed"],
         "enable_aniways": DEFAULT_ADDON_CONFIG["enable_aniways"],
         "famelack_countries": list(DEFAULT_ADDON_CONFIG["famelack_countries"]),
         "enable_wyzie": DEFAULT_ADDON_CONFIG["enable_wyzie"],
@@ -95,6 +97,7 @@ def normalize_addon_config(raw_config):
     cfg["enable_vidzee"] = _to_bool(raw_config.get("enable_vidzee"), cfg["enable_vidzee"])
     cfg["enable_autoembed"] = _to_bool(raw_config.get("enable_autoembed"), cfg["enable_autoembed"])
     cfg["enable_vixsrc"] = _to_bool(raw_config.get("enable_vixsrc"), cfg["enable_vixsrc"])
+    cfg["enable_superembed"] = _to_bool(raw_config.get("enable_superembed"), cfg["enable_superembed"])
     cfg["enable_aniways"] = _to_bool(raw_config.get("enable_aniways"), cfg["enable_aniways"])
 
     # Handle famelack_countries
@@ -148,9 +151,6 @@ def decode_addon_config_token(token):
 
     try:
         padded = raw + ("=" * (-len(raw) % 4))
-        decoded = base64.urlsafe_b64encode(padded.encode("ascii")).decode("utf-8") # FIX: Should be decode
-        # Wait, previous code was b64decode. Let me check the read_file output of runtime_config.py again.
-        # Ah, I am overwriting. I need to be careful. The previous code was correct.
         decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
         payload = json.loads(decoded)
     except Exception as exc:

@@ -11,6 +11,23 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=2048)
+def get_imdb_id_from_tmdb(tmdb_id, content_type=None):
+    """Maps TMDB id to IMDb id."""
+    kind = "tv" if str(content_type or "").lower() in ("series", "tv") else "movie"
+    url = f"https://api.themoviedb.org/3/{kind}/{tmdb_id}/external_ids"
+    headers = {"Authorization": f"Bearer {TMDB_TOKEN}", "User-Agent": COMMON_HEADERS["User-Agent"]}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("imdb_id")
+    except Exception as exc:
+        logger.error("IMDb lookup failed for TMDB %s: %s", tmdb_id, exc)
+        return None
+
+
+@lru_cache(maxsize=2048)
 def get_tmdb_id(imdb_id, content_type=None):
     """Maps IMDb id to TMDB id with type-aware selection."""
     url = f"https://api.themoviedb.org/3/find/{imdb_id}?external_source=imdb_id"

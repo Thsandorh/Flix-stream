@@ -60,6 +60,13 @@ VIXSRC_COMMON_HEADERS = {
     "Origin": VIXSRC_BASE_URL,
 }
 
+SUPEREMBED_BASE_URL = "https://multiembed.mov"
+SUPEREMBED_COMMON_HEADERS = {
+    "User-Agent": COMMON_HEADERS["User-Agent"],
+    "Referer": f"{SUPEREMBED_BASE_URL}/",
+    "Origin": SUPEREMBED_BASE_URL,
+}
+
 ANIWAYS_API_BASE = "https://api.aniways.xyz"
 ANIWAYS_COMMON_HEADERS = {
     "User-Agent": COMMON_HEADERS["User-Agent"],

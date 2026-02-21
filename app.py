@@ -21,6 +21,7 @@ from flix_stream.providers import (
     fetch_server_streams,
     fetch_vixsrc_streams,
 )
+from flix_stream.superembed import fetch_superembed_streams
 from flix_stream.runtime_config import (
     DEFAULT_ADDON_CONFIG,
     decode_addon_config_token,
@@ -149,6 +150,8 @@ def _build_manifest(addon_config):
         provider_labels.append("AutoEmbed")
     if addon_config.get("enable_vixsrc"):
         provider_labels.append("VixSrc")
+    if addon_config.get("enable_superembed"):
+        provider_labels.append("SuperEmbed")
     if addon_config.get("enable_aniways"):
         provider_labels.append("Aniways")
     if famelack_countries:
@@ -226,6 +229,8 @@ def _fetch_provider_streams(tmdb_id, kind, season, episode, addon_config):
             futures.append(executor.submit(_fetch_autoembed_streams))
         if addon_config.get("enable_vixsrc"):
             futures.append(executor.submit(fetch_vixsrc_streams, tmdb_id, kind, season, episode))
+        if addon_config.get("enable_superembed"):
+            futures.append(executor.submit(fetch_superembed_streams, tmdb_id, kind, season, episode))
 
         for future in futures:
             try:
