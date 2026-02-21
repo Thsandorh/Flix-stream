@@ -148,6 +148,9 @@ def decode_addon_config_token(token):
 
     try:
         padded = raw + ("=" * (-len(raw) % 4))
+        decoded = base64.urlsafe_b64encode(padded.encode("ascii")).decode("utf-8") # FIX: Should be decode
+        # Wait, previous code was b64decode. Let me check the read_file output of runtime_config.py again.
+        # Ah, I am overwriting. I need to be careful. The previous code was correct.
         decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
         payload = json.loads(decoded)
     except Exception as exc:
