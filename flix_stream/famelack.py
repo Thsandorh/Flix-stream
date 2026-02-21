@@ -92,15 +92,8 @@ def get_famelack_catalog(code, skip=0):
         name = ch.get("name")
         country_code = ch.get("country", "").lower()
 
-        poster = None
-        youtube_urls = ch.get("youtube_urls", [])
-        if youtube_urls:
-            yt_id = _extract_youtube_id(youtube_urls[0])
-            if yt_id:
-                poster = f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
-
-        if not poster:
-             poster = _generate_poster(name, country_code)
+        # Always use generated poster with channel name
+        poster = _generate_poster(name, country_code)
 
         metas.append({
             "id": f"famelack:{country_code}:{nanoid}",
@@ -133,15 +126,8 @@ def get_famelack_meta(famelack_id):
     name = channel.get("name")
     country_code = channel.get("country", "").lower()
 
-    poster = None
-    youtube_urls = channel.get("youtube_urls", [])
-    if youtube_urls:
-        yt_id = _extract_youtube_id(youtube_urls[0])
-        if yt_id:
-            poster = f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
-
-    if not poster:
-            poster = _generate_poster(name, country_code)
+    # Always use generated poster with channel name
+    poster = _generate_poster(name, country_code)
 
     return {
         "id": famelack_id,
