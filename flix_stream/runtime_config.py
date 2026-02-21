@@ -19,6 +19,7 @@ DEFAULT_ADDON_CONFIG = {
     "enable_vidzee": True,
     "enable_autoembed": True,
     "enable_vixsrc": True,
+    "enable_cineby": True,
     "enable_aniways": True,
     "famelack_countries": [], # List of country codes
     "enable_wyzie": True,
@@ -36,6 +37,7 @@ def _default_config_copy():
         "enable_vidzee": DEFAULT_ADDON_CONFIG["enable_vidzee"],
         "enable_autoembed": DEFAULT_ADDON_CONFIG["enable_autoembed"],
         "enable_vixsrc": DEFAULT_ADDON_CONFIG["enable_vixsrc"],
+        "enable_cineby": DEFAULT_ADDON_CONFIG["enable_cineby"],
         "enable_aniways": DEFAULT_ADDON_CONFIG["enable_aniways"],
         "famelack_countries": list(DEFAULT_ADDON_CONFIG["famelack_countries"]),
         "enable_wyzie": DEFAULT_ADDON_CONFIG["enable_wyzie"],
@@ -95,6 +97,7 @@ def normalize_addon_config(raw_config):
     cfg["enable_vidzee"] = _to_bool(raw_config.get("enable_vidzee"), cfg["enable_vidzee"])
     cfg["enable_autoembed"] = _to_bool(raw_config.get("enable_autoembed"), cfg["enable_autoembed"])
     cfg["enable_vixsrc"] = _to_bool(raw_config.get("enable_vixsrc"), cfg["enable_vixsrc"])
+    cfg["enable_cineby"] = _to_bool(raw_config.get("enable_cineby"), cfg["enable_cineby"])
     cfg["enable_aniways"] = _to_bool(raw_config.get("enable_aniways"), cfg["enable_aniways"])
 
     # Handle famelack_countries
