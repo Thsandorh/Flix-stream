@@ -43,12 +43,17 @@ from flix_stream.wyzie import fetch_wyzie_subtitles, merge_subtitles
 
 app = Flask(__name__)
 
-STMIFY_CATALOG = {
-    "type": "series",
-    "id": "stmify-live",
-    "name": "Stmify Live TV",
-    "extra": [{"name": "skip", "isRequired": False}],
-}
+STMIFY_CATALOGS = [
+    {"type": "series", "id": "stmify-trending", "name": "Stmify Trending", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-movies", "name": "Stmify Movies", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-sports", "name": "Stmify Sports", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-news", "name": "Stmify News", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-kids", "name": "Stmify Kids", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-music", "name": "Stmify Music", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-entertainment", "name": "Stmify Entertainment", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-infotainment", "name": "Stmify Infotainment", "extra": [{"name": "skip", "isRequired": False}]},
+    {"type": "series", "id": "stmify-4k", "name": "Stmify 4K", "extra": [{"name": "skip", "isRequired": False}]},
+]
 
 
 def _support_stream():
@@ -125,13 +130,15 @@ def _build_manifest(addon_config):
             resources.append("meta")
         if "stmify" not in id_prefixes:
             id_prefixes.append("stmify")
-        if not any(
-            isinstance(catalog, dict)
-            and catalog.get("type") == STMIFY_CATALOG["type"]
-            and catalog.get("id") == STMIFY_CATALOG["id"]
-            for catalog in catalogs
-        ):
-            catalogs.append(dict(STMIFY_CATALOG))
+
+        for stmify_cat in STMIFY_CATALOGS:
+            if not any(
+                isinstance(catalog, dict)
+                and catalog.get("type") == stmify_cat["type"]
+                and catalog.get("id") == stmify_cat["id"]
+                for catalog in catalogs
+            ):
+                catalogs.append(dict(stmify_cat))
     else:
         id_prefixes = [prefix for prefix in id_prefixes if prefix != "stmify"]
         catalogs = [
@@ -139,8 +146,10 @@ def _build_manifest(addon_config):
             for catalog in catalogs
             if not (
                 isinstance(catalog, dict)
-                and catalog.get("type") == STMIFY_CATALOG["type"]
-                and catalog.get("id") == STMIFY_CATALOG["id"]
+                and any(
+                    catalog.get("type") == sc["type"] and catalog.get("id") == sc["id"]
+                    for sc in STMIFY_CATALOGS
+                )
             )
         ]
         if not catalogs:
@@ -328,8 +337,13 @@ def manifest_with_config(config_token):
 
 
 def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
-    if catalog_type != "series" or catalog_id != STMIFY_CATALOG["id"]:
+    if catalog_type != "series":
         return jsonify({"metas": []})
+
+    is_stmify_catalog = any(c["id"] == catalog_id for c in STMIFY_CATALOGS)
+    if not is_stmify_catalog:
+        return jsonify({"metas": []})
+
     if not addon_config.get("enable_stmify"):
         return jsonify({"metas": []})
 
@@ -339,7 +353,7 @@ def _catalog_response(catalog_type, catalog_id, addon_config, skip=None):
         except Exception:
             skip = 0
     skip = max(skip, 0)
-    metas = get_stmify_catalog(skip=skip, limit=20)
+    metas = get_stmify_catalog(catalog_id, skip=skip)
     return jsonify({"metas": metas})
 
 
