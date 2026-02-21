@@ -3,6 +3,7 @@ import os
 import requests
 import base64
 import binascii
+import re  # Added re import
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from functools import lru_cache
 
