@@ -1,131 +1,162 @@
-import logging
 import re
+import json
+import base64
 import requests
-from flix_stream.config import COMMON_HEADERS, SUPEREMBED_BASE_URL, PROVIDER_CACHE_TTL, PROVIDER_CACHE_MAXSIZE
-from flix_stream.cache import ttl_cache
-from flix_stream.subtitles import parse_subtitles
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 from flix_stream.tmdb import get_imdb_id_from_tmdb
 
-logger = logging.getLogger(__name__)
+# Configuration for SuperEmbed
+BASE_URL = "https://www.superembed.stream"
+MULTIEMBED_URL = "https://multiembed.mov"
+STREAMINGNOW_URL = "https://streamingnow.mov"
 
-# List of server IDs that are known to be "VIP" and easier to scrape
-VIP_SERVERS = ["88", "89", "90"]
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://multiembed.mov/",
+    "Origin": "https://multiembed.mov"
+}
 
-@ttl_cache(ttl_seconds=PROVIDER_CACHE_TTL, maxsize=PROVIDER_CACHE_MAXSIZE)
-def fetch_superembed_streams(tmdb_id, content_type, season, episode):
+def fetch_superembed_streams(tmdb_id, kind, season=None, episode=None):
     """
-    Scrapes SuperEmbed for direct playable links.
+    Fetches streams from SuperEmbed by following the redirect chain and identifying direct M3U8 links.
     """
-    imdb_id = get_imdb_id_from_tmdb(tmdb_id, content_type)
+    streams = []
+    imdb_id = get_imdb_id_from_tmdb(tmdb_id)
     if not imdb_id:
-        logger.warning(f"Could not resolve IMDb ID for TMDB {tmdb_id}")
         return []
 
-    session = requests.Session()
-    session.headers.update(COMMON_HEADERS)
+    # Construct the search URL for SuperEmbed/MultiEmbed
+    if kind in ("series", "tv"):
+        query_url = f"{MULTIEMBED_URL}/?video_id={imdb_id}&s={season}&e={episode}"
+    else:
+        query_url = f"{MULTIEMBED_URL}/?video_id={imdb_id}"
 
-    streams = []
     try:
-        # 1. Get play token from multiembed.mov
-        media_type = "tv" if str(content_type or "").lower() in ("series", "tv") else "movie"
-        if media_type == "tv":
-            url = f"{SUPEREMBED_BASE_URL}/?video_id={imdb_id}&s={season}&e={episode}"
-        else:
-            url = f"{SUPEREMBED_BASE_URL}/?video_id={imdb_id}"
+        # 1. Get the session token and follow initial redirect
+        session = requests.Session()
+        res = session.get(query_url, headers=HEADERS, timeout=10)
 
-        r1 = session.get(url, allow_redirects=True, timeout=10)
-        token_match = re.search(r'play=([^&]+)', r1.url)
+        # SuperEmbed uses a redirect to streamingnow.mov with a token
+        if "streamingnow.mov" in res.url:
+            target_url = res.url
+        else:
+            # Fallback: check for scripts or meta redirects
+            match = re.search(r'window\.location\.href\s*=\s*"(https://streamingnow\.mov/[^"]+)"', res.text)
+            if match:
+                target_url = match.group(1)
+            else:
+                return []
+
+        # 2. Get the server list from the streamingnow page
+        # This typically involves a POST to response.php with the token
+        token_match = re.search(r'var\s+token\s*=\s*"([^"]+)"', res.text)
+        if not token_match:
+            # Try getting the page content first if we haven't already
+            res = session.get(target_url, headers=HEADERS, timeout=10)
+            token_match = re.search(r'var\s+token\s*=\s*"([^"]+)"', res.text)
+
         if not token_match:
             return []
+
         token = token_match.group(1)
-        player_host = r1.url.split('/?')[0] # Usually https://streamingnow.mov
 
-        # 2. Get server list from response.php
-        r2 = session.post(f"{player_host}/response.php",
-                          data={"token": token},
-                          headers={
-                              "Referer": r1.url,
-                              "X-Requested-With": "XMLHttpRequest"
-                          },
-                          timeout=10)
+        # Fetch the server list
+        response_url = f"{STREAMINGNOW_URL}/response.php"
+        res = session.post(response_url, headers={**HEADERS, "Referer": target_url}, data={"token": token}, timeout=10)
 
-        if r2.status_code != 200:
+        try:
+            servers = res.json()
+        except:
             return []
 
-        server_list = re.findall(r'<li data-id="([^"]+)" data-server="([^"]+)"', r2.text)
+        # 3. Process each server to find direct links or embeds
+        # Priority: Servers 88, 89, 90 often provide internal players with direct M3U8
+        vip_server_ids = ["88", "89", "90"]
 
-        # 3. Scrape each server, prioritized
-        # Sort so VIP servers come first
-        server_list.sort(key=lambda x: 0 if x[1] in VIP_SERVERS else 1)
+        def process_server(server):
+            srv_id = str(server.get("id"))
+            srv_name = server.get("name", f"Server {srv_id}")
 
-        for sid, srv in server_list:
-            try:
-                # Limit to VIP servers for now to ensure quality/playability, or add others as iframes
-                play_url = f"{player_host}/playvideo.php?video_id={sid}&server_id={srv}&token={token}&init=0"
-                r3 = session.get(play_url, headers={"Referer": r1.url}, timeout=10)
+            # Construct the play URL
+            play_url = f"{STREAMINGNOW_URL}/playvideo.php?id={srv_id}&token={token}"
 
-                iframe_match = re.search(r'<iframe.*?src="([^"]+)"', r3.text)
-                if not iframe_match:
-                    continue
+            # If it's a VIP server, try to extract the direct M3U8
+            if srv_id in vip_server_ids:
+                try:
+                    srv_res = session.get(play_url, headers={**HEADERS, "Referer": target_url}, timeout=10)
+                    # Check for direct M3U8 in Playerjs config
+                    # Look for file: "..." or file: '...'
+                    m3u8_match = re.search(r'file\s*:\s*["\'](https?://[^"\']+\.m3u8[^"\']*)["\']', srv_res.text)
+                    if m3u8_match:
+                        direct_url = m3u8_match.group(1)
 
-                iframe_url = iframe_match.group(1)
-                if iframe_url.startswith("//"):
-                    iframe_url = "https:" + iframe_url
-                elif iframe_url.startswith("/"):
-                    iframe_url = f"{player_host}{iframe_url}"
+                        # Extract subtitles if available
+                        subtitles = []
+                        subtitle_match = re.search(r'subtitle\s*:\s*["\']([^"\']+)["\']', srv_res.text)
+                        if subtitle_match:
+                            sub_str = subtitle_match.group(1)
+                            # Format: [Lang]https://url.vtt,[Lang2]https://url2.vtt
+                            sub_parts = sub_str.split(",")
+                            for part in sub_parts:
+                                if "[" in part and "]" in part:
+                                    label = part[part.find("[")+1:part.find("]")]
+                                    url = part[part.find("]")+1:]
+                                    # Map common names to ISO 639-2
+                                    lang_code = label.lower()[:3]
+                                    if "eng" in lang_code: lang_code = "eng"
+                                    elif "spa" in lang_code: lang_code = "spa"
+                                    elif "fre" in lang_code: lang_code = "fre"
+                                    elif "ger" in lang_code: lang_code = "deu"
 
-                # Check if it's a VIP stream (internal)
-                if "vipstream_vfx.php" in iframe_url:
-                    r4 = session.get(iframe_url, headers={"Referer": player_host}, timeout=10)
-                    file_match = re.search(r'file\s*:\s*"([^"]+)"', r4.text)
-                    if file_match:
-                        m3u8_url = file_match.group(1)
+                                    subtitles.append({
+                                        "id": label,
+                                        "url": url,
+                                        "lang": lang_code
+                                    })
 
-                        # Extract subtitles
-                        subs = []
-                        sub_match = re.search(r'subtitle\s*:\s*"([^"]+)"', r4.text)
-                        if sub_match:
-                            sub_str = sub_match.group(1)
-                            # Format: [Lang]Url,[Lang]Url
-                            parts = sub_str.split(',')
-                            for p in parts:
-                                if ']' in p:
-                                    label, url = p.split(']', 1)
-                                    subs.append({"lang": label[1:], "url": url})
-
-                        streams.append({
-                            "name": f"SuperEmbed VIP-{srv}",
-                            "title": f"[SuperEmbed] Direct M3U8 ({srv})\nSubtitles: {len(subs)}",
-                            "url": m3u8_url,
-                            "subtitles": parse_subtitles(subs),
+                        return {
+                            "name": f"SuperEmbed VIP-{srv_id}",
+                            "title": f"[SuperEmbed] Direct M3U8 ({srv_id})\nSubtitles: {len(subtitles)}",
+                            "url": direct_url,
+                            "subtitles": subtitles,
                             "behaviorHints": {
                                 "notWebReady": True,
-                                "proxyHeaders": {"request": COMMON_HEADERS}
+                                "proxyHeaders": {
+                                    "request": {
+                                        "User-Agent": HEADERS["User-Agent"],
+                                        "Referer": "https://player.vidzee.wtf/", # Common referer used in the app
+                                        "Origin": "https://player.vidzee.wtf"
+                                    }
+                                }
                             }
-                        })
-                else:
-                    # Generic iframe fallback
-                    # We can't always extract direct links from 3rd party hosters easily
-                    # But we can provide the iframe URL if it's not blocked
-                    # Some clients can play these if they support iframe playback
-                    streams.append({
-                        "name": f"SuperEmbed {srv}",
-                        "title": f"[SuperEmbed] Iframe ({srv})",
-                        "url": iframe_url,
-                        "behaviorHints": {
-                            "notWebReady": True,
                         }
-                    })
+                except:
+                    pass
 
-                # If we found at least one good VIP stream, we can stop or continue
-                if len(streams) >= 3:
-                    break
+            # Fallback for other servers or if direct extraction failed
+            return {
+                "name": f"SuperEmbed {srv_name}",
+                "title": f"[SuperEmbed] Server {srv_id}",
+                "url": play_url,
+                "behaviorHints": {
+                    "notWebReady": True,
+                    "proxyHeaders": {
+                        "request": {
+                            "User-Agent": HEADERS["User-Agent"],
+                            "Referer": target_url,
+                            "Origin": STREAMINGNOW_URL
+                        }
+                    }
+                }
+            }
 
-            except Exception as e:
-                logger.error(f"Error scraping SuperEmbed server {srv}: {e}")
-                continue
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(process_server, servers))
+            streams.extend([r for r in results if r])
 
     except Exception as e:
-        logger.error(f"SuperEmbed scraping failed: {e}")
+        # Fail silently in production, or log it
+        pass
 
     return streams
